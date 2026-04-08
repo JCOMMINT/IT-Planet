@@ -1,0 +1,64 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["shared", "crs", "collectors", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "D",   # pydocstring (Google style)
+    "ANN", # flake8-annotations
+    "S",   # bandit security
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "D100",   # missing docstring in public module (some entry-point modules intentionally minimal)
+    "D104",   # missing docstring in public package
+    "ANN101", # missing type annotation for `self`
+    "ANN102", # missing type annotation for `cls`
+    "S101",   # use of assert (allowed in tests)
+    "S105",   # hardcoded password (false positives on env var names)
+]
+
+[tool.ruff.lint.pydocstring-conventions]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "D", "S"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared", "collectors", "crs"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+# ── pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: pure unit tests, no I/O",
+    "integration: tests that mock HTTP but exercise real pipeline logic",
+    "e2e: full end-to-end tests against real or emulated GCP services",
+]
+addopts = "-v --tb=short"
+
+# ── coverage ──────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["shared", "collectors", "crs"]
+omit = ["tests/*", "*/Dockerfile", "*/.env*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 70

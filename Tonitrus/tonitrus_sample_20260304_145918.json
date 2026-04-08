@@ -1,0 +1,262 @@
+[
+  {
+    "url": "https://www.tonitrus.com/C1000-16FP-2G-L_16",
+    "product_name": "Cisco - C1000-16FP-2G-L - Cisco - C1000-16FP-2G-L - Catalyst 1000 16port GE, Full POE, 2x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-16FP-2G-L",
+    "barcode": "10237444",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237444-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237444-014",
+        "price_gross": "1.078,50 €",
+        "price_net": "906,30 €",
+        "stock": 1,
+        "status": "InStock"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-16P-2G-L_17",
+    "product_name": "Cisco - C1000-16P-2G-L - Cisco - C1000-16P-2G-L - Catalyst 1000 16port GE, POE, 2x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-16P-2G-L",
+    "barcode": "10237339",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237339-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237339-014",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-16P-2G-L_32",
+    "product_name": "Cisco - C1000-16P-2G-L - Cisco - C1000-16P-2G-L - Catalyst 1000 16port GE, POE, 2x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-16P-2G-L",
+    "barcode": "10237445",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237445-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237445-014",
+        "price_gross": "686,50 €",
+        "price_net": "576,89 €",
+        "stock": 1,
+        "status": "InStock"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-16P-E-2G-L_8",
+    "product_name": "Cisco - C1000-16P-E-2G-L - Cisco - C1000-16P-E-2G-L - Catalyst 1000 16port GE, POE, Ext PS, 2x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-16P-E-2G-L",
+    "barcode": "10237446",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237446-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237446-014",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-16T-2G-L_17",
+    "product_name": "Cisco - C1000-16T-2G-L - Cisco - C1000-16T-2G-L - Catalyst 1000 16port GE, 2x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-16T-2G-L",
+    "barcode": "10237447",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237447-003",
+        "price_gross": "552,50 €",
+        "price_net": "464,29 €",
+        "stock": 1,
+        "status": "InStock"
+      },
+      "REFURBISHED": {
+        "sku": "10237447-014",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-16T-E-2G-L_16",
+    "product_name": "Cisco - C1000-16T-E-2G-L - Cisco - C1000-16T-E-2G-L - Catalyst 1000 16port GE, Ext PS, 2x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-16T-E-2G-L",
+    "barcode": "10237448",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237448-003",
+        "price_gross": "408,50 €",
+        "price_net": "343,28 €",
+        "stock": 2,
+        "status": "InStock"
+      },
+      "REFURBISHED": {
+        "sku": "10237448-014",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-24FP-4G-L_14",
+    "product_name": "Cisco - C1000-24FP-4G-L - Cisco - C1000-24FP-4G-L - Catalyst 1000 24port GE, Full POE, 4x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-24FP-4G-L",
+    "barcode": "10237449",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237449-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237449-014",
+        "price_gross": "1.332,50 €",
+        "price_net": "1.119,75 €",
+        "stock": 2,
+        "status": "InStock"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-24FP-4X-L_8",
+    "product_name": "Cisco - C1000-24FP-4X-L - Cisco - C1000-24FP-4X-L - Catalyst 1000-24FP-4X-L - Switch - Managed - 24 x 10/100/1000 (PoE+) + 4 x 10 Gigabit SFP+ (uplink) - rack-mountable - PoE+ (370 W)",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-24FP-4X-L",
+    "barcode": "10237450",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237450-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237450-014",
+        "price_gross": "3.062,50 €",
+        "price_net": "2.573,53 €",
+        "stock": 19,
+        "status": "InStock"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-24P-4G-L_11",
+    "product_name": "Cisco - C1000-24P-4G-L - Cisco - C1000-24P-4G-L - Catalyst 1000 24port GE, POE, 4x1G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-24P-4G-L",
+    "barcode": "10237451",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237451-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237451-014",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  },
+  {
+    "url": "https://www.tonitrus.com/C1000-24P-4X-L_7",
+    "product_name": "Cisco - C1000-24P-4X-L - Cisco - C1000-24P-4X-L - Catalyst 1000 24 port GE, POE, 4 x 10G SFP",
+    "brand": "Cisco",
+    "model": "Cisco Catalyst 1000 Switch",
+    "mpn": "C1000-24P-4X-L",
+    "barcode": "10237452",
+    "subcategory": "Networking > Cisco > Switch > Cisco Catalyst 1000 Switch",
+    "prices": {
+      "NEW": {
+        "sku": "10237452-003",
+        "price_gross": null,
+        "price_net": null,
+        "stock": 0,
+        "status": "OOS"
+      },
+      "REFURBISHED": {
+        "sku": "10237452-014",
+        "price_gross": "790,50 €",
+        "price_net": "664,29 €",
+        "stock": 5,
+        "status": "InStock"
+      }
+    },
+    "input_url": "https://www.tonitrus.com/Switch_21"
+  }
+]

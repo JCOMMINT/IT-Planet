@@ -1,0 +1,139 @@
+breadcrumb,name,url,count,pages,capped,source
+Apple,Apple,https://www.jacob.de/apple/,1120,56,False,pagination[last=56]
+Enterprise,Enterprise,https://www.jacob.de/enterprise/,10000,500,True,pagination[last=500]
+Enterprise > Barcode Scanner,Barcode Scanner,https://www.jacob.de/barcodescanner/,598,30,False,nav__count
+Enterprise > Drucker,Drucker,https://www.jacob.de/enterprise-drucker/,1162,59,False,nav__count
+Enterprise > Firewalls,Firewalls,https://www.jacob.de/firewalls/,24,2,False,nav__count
+Enterprise > Handhelds,Handhelds,https://www.jacob.de/handhelds/,899,45,False,nav__count
+Enterprise > Laufwerke & Medien,Laufwerke & Medien,https://www.jacob.de/enterprise-laufwerke-medien/,136,7,False,nav__count
+Enterprise > Patchpanel,Patchpanel,https://www.jacob.de/patchpanel/,828,42,False,nav__count
+Enterprise > POS,POS,https://www.jacob.de/pos/,855,43,False,nav__count
+Enterprise > Racks,Racks,https://www.jacob.de/racks/,5204,261,False,nav__count
+Enterprise > Redundante Stromversorgung,Redundante Stromversorgung,https://www.jacob.de/redundante-stromversorgung/,18,1,False,nav__count
+Enterprise > Server,Server,https://www.jacob.de/server/,205,11,False,nav__count
+Enterprise > Service & Support,Service & Support,https://www.jacob.de/service-support/,41459,2073,True,nav__count
+Enterprise > Service & Support > Ausgabegeräte,Ausgabegeräte,https://www.jacob.de/service-support-ausgabegeraete/,3004,151,False,nav__count
+Enterprise > Service & Support > Eingabegeräte,Eingabegeräte,https://www.jacob.de/service-support-eingabegeraete/,621,32,False,nav__count
+Enterprise > Service & Support > Netzwerk,Netzwerk,https://www.jacob.de/service-support-netzwerk/,5427,272,False,nav__count
+Enterprise > Service & Support > Software,Software,https://www.jacob.de/service-support-software/,7554,378,False,nav__count
+Enterprise > Service & Support > Speichergeräte,Speichergeräte,https://www.jacob.de/service-support-speichergeraete/,246,13,False,nav__count
+Enterprise > Service & Support > Systeme,Systeme,https://www.jacob.de/service-support-systeme/,17233,862,True,nav__count
+Enterprise > Service & Support > Weiterer Service & Support,Weiterer Service & Support,https://www.jacob.de/service-support-divers/,7374,369,False,nav__count
+Enterprise > Storage Systeme,Storage Systeme,https://www.jacob.de/storage-systeme/,266,14,False,nav__count
+Enterprise > Telefonanlagen,Telefonanlagen,https://www.jacob.de/telefon-anlagen/,259,13,False,nav__count
+Enterprise > Thin Clients,Thin Clients,https://www.jacob.de/thin-clients/,28,2,False,nav__count
+Enterprise > Unterbrechungsfreie Stromversorgung (USV),Unterbrechungsfreie Stromversorgung (USV),https://www.jacob.de/usv-stromversorgung/,996,50,False,nav__count
+Enterprise > Workstations,Workstations,https://www.jacob.de/workstations/,199,10,False,nav__count
+Haushalt,Haushalt,https://www.jacob.de/haushalt/,10000,500,True,pagination[last=500]
+Haushalt > Baby- & Kleinkindbedarf,Baby- & Kleinkindbedarf,https://www.jacob.de/baby-kleinkind-bedarf/,74,4,False,nav__count
+Haushalt > Batterien,Batterien,https://www.jacob.de/batterien/,152,8,False,nav__count
+Haushalt > Elektro & Installation,Elektro & Installation,https://www.jacob.de/elektro-installation/,28519,1426,True,nav__count
+Haushalt > Elektro & Installation > Antriebstechnik,Antriebstechnik,https://www.jacob.de/elektro-installation-antriebstechnik/,88,5,False,nav__count
+Haushalt > Elektro & Installation > Bauelemente (aktiv),Bauelemente (aktiv),https://www.jacob.de/aktive-bauelemente/,560,28,False,nav__count
+Haushalt > Elektro & Installation > Bauelemente (passiv),Bauelemente (passiv),https://www.jacob.de/passive-bauelemente/,159,8,False,nav__count
+Haushalt > Elektro & Installation > Elektroinstallation,Elektroinstallation,https://www.jacob.de/elektroinstallation/,11149,558,True,nav__count
+Haushalt > Elektro & Installation > Gefahrenmelder,Gefahrenmelder,https://www.jacob.de/gefahrenmelder-rauchmelder/,7,1,False,nav__count
+Haushalt > Elektro & Installation > Heizung & Warmwasserinstallation,Heizung & Warmwasserinstallation,https://www.jacob.de/heizung-warmwasserinstallation/,179,9,False,nav__count
+Haushalt > Elektro & Installation > Kabeltrommel (Strom),Kabeltrommel (Strom),https://www.jacob.de/kabeltrommeln-strom-verlaengerung/,79,4,False,nav__count
+Haushalt > Elektro & Installation > Leiterplatten & Entwicklungskits,Leiterplatten & Entwicklungskits,https://www.jacob.de/leiterplatten-entwicklungskits/,452,23,False,nav__count
+Haushalt > Elektro & Installation > Optoelektronik,Optoelektronik,https://www.jacob.de/elektro-installation-optoelektronik/,149,8,False,nav__count
+Haushalt > Elektro & Installation > Pneumatik & Allfluid,Pneumatik & Allfluid,https://www.jacob.de/elektro-installation-pneumatik-allfluid/,39,2,False,nav__count
+Haushalt > Elektro & Installation > Relais,Relais,https://www.jacob.de/elektro-installation-relais/,2216,111,False,nav__count
+Haushalt > Elektro & Installation > Sanitärinstallation,Sanitärinstallation,https://www.jacob.de/installation-sanitaerinstallation/,184,10,False,nav__count
+Haushalt > Elektro & Installation > Schalter & Taster,Schalter & Taster,https://www.jacob.de/elektro-installation-schalter-taster/,2627,132,False,nav__count
+Haushalt > Elektro & Installation > Schalterserien,Schalterserien,https://www.jacob.de/elektro-installation-schalterserien/,2650,133,False,nav__count
+Haushalt > Elektro & Installation > Sensoren,Sensoren,https://www.jacob.de/elektro-installation-sensoren/,349,18,False,nav__count
+Haushalt > Elektro & Installation > Sicherheitstechnik,Sicherheitstechnik,https://www.jacob.de/elektro-installation-sicherheitstechnik/,1142,58,False,nav__count
+Haushalt > Elektro & Installation > Sicherungen,Sicherungen,https://www.jacob.de/elektro-installation-sicherungen/,171,9,False,nav__count
+Haushalt > Elektro & Installation > Smart Home,Smart Home,https://www.jacob.de/smart-home/,1733,87,False,nav__count
+Haushalt > Elektro & Installation > Steckdosenleiste,Steckdosenleiste,https://www.jacob.de/steckdosenleisten-mehrfachstecker/,1132,57,False,nav__count
+Haushalt > Elektro & Installation > Steckverbinder & Klemmen,Steckverbinder & Klemmen,https://www.jacob.de/steckverbinder-klemmen/,3294,165,False,nav__count
+Haushalt > Elektro & Installation > Transformatoren,Transformatoren,https://www.jacob.de/elektro-installation-transformatoren/,48,3,False,nav__count
+Haushalt > Elektro & Installation > Verlängerungskabel,Verlängerungskabel,https://www.jacob.de/verlaengerungskabel/,112,6,False,nav__count
+Haushalt > Garten,Garten,https://www.jacob.de/garten-heimwerken/,1086,55,False,nav__count
+Haushalt > Geschirr,Geschirr,https://www.jacob.de/geschirr/,373,19,False,nav__count
+Haushalt > Gesundheit & Wellness,Gesundheit & Wellness,https://www.jacob.de/gesundheit-wellness/,392,20,False,nav__count
+"Haushalt > Heizung, Lüftung & Klima","Heizung, Lüftung & Klima",https://www.jacob.de/heizung-lueftung-klima/,197,10,False,nav__count
+Haushalt > Hobby & Freizeit,Hobby & Freizeit,https://www.jacob.de/hobby-freizeit/,2762,139,False,nav__count
+Haushalt > Körperpflege,Körperpflege,https://www.jacob.de/koerperpflege/,759,38,False,nav__count
+Haushalt > Küche,Küche,https://www.jacob.de/kueche/,1511,76,False,nav__count
+Haushalt > Navigationsgeräte,Navigationsgeräte,https://www.jacob.de/navigation-navigationsgeraete/,53,3,False,nav__count
+Haushalt > Reinigung,Reinigung,https://www.jacob.de/reinigung/,781,40,False,nav__count
+Haushalt > Wanduhr,Wanduhr,https://www.jacob.de/wanduhren/,162,9,False,nav__count
+Haushalt > Wecker,Wecker,https://www.jacob.de/wecker/,9,1,False,nav__count
+Haushalt > Werkzeug,Werkzeug,https://www.jacob.de/werkzeug/,3984,200,False,nav__count
+Haushalt > Schlüsselfinder,Schlüsselfinder,https://www.jacob.de/schluesselfinder/,11,1,False,nav__count
+Netzwerk,Netzwerk,https://www.jacob.de/netzwerk/,10000,500,True,pagination[last=500]
+Netzwerk > Access Points,Access Points,https://www.jacob.de/access-points/,695,35,False,nav__count
+Netzwerk > Antennen,Antennen,https://www.jacob.de/netzwerk-antennen/,958,48,False,nav__count
+Netzwerk > Antennenkabel,Antennenkabel,https://www.jacob.de/antennenkabel/,56,3,False,nav__count
+Netzwerk > Netzwerk-Kabel & -Adapter,Netzwerk-Kabel & -Adapter,https://www.jacob.de/netzwerk-kabel-adapter/,35349,1768,True,nav__count
+Netzwerk > Netzwerk-Kabel & -Adapter > LWL Kabel,LWL Kabel,https://www.jacob.de/netzwerk-lwl-kabel/,10763,539,True,nav__count
+Netzwerk > Netzwerk-Kabel & -Adapter > Netzwerkdosen,Netzwerkdosen,https://www.jacob.de/netzwerkdosen/,274,14,False,nav__count
+Netzwerk > Netzwerk-Kabel & -Adapter > Patchkabel,Patchkabel,https://www.jacob.de/netzwerk-patchkabel/,24312,1216,True,nav__count
+Netzwerk > Netzwerk-Werkzeuge,Netzwerk-Werkzeuge,https://www.jacob.de/netzwerk-werkzeuge/,249,13,False,nav__count
+Netzwerk > Netzwerkkameras,Netzwerkkameras,https://www.jacob.de/netzwerk-ip-kameras/,2318,116,False,nav__count
+Netzwerk > Powerline,Powerline,https://www.jacob.de/netzwerk-powerline/,53,3,False,nav__count
+Netzwerk > Printserver,Printserver,https://www.jacob.de/printserver/,30,2,False,nav__count
+Netzwerk > Repeater,Repeater,https://www.jacob.de/wlan-repeater/,80,4,False,nav__count
+Netzwerk > Router,Router,https://www.jacob.de/router/,923,47,False,nav__count
+Netzwerk > Switche,Switche,https://www.jacob.de/switches/,2168,109,False,nav__count
+Netzwerk > Transceiver Modules,Transceiver Modules,https://www.jacob.de/transceiver-module/,8572,429,False,nav__count
+Netzwerk > Ubiquiti Camera Security,Ubiquiti Camera Security,https://www.jacob.de/ubiquiti-camera-security/,4,1,False,nav__count
+Netzwerk > Ubiquiti Cloud Gateways,Ubiquiti Cloud Gateways,https://www.jacob.de/ubiquiti-cloud-gateways/,6,1,False,nav__count
+Netzwerk > Ubiquiti Netzwerk Sale,Ubiquiti Netzwerk Sale,https://www.jacob.de/ubiquiti-netzwerk-sale/,28,2,False,nav__count
+Netzwerk > Ubiquiti Switching,Ubiquiti Switching,https://www.jacob.de/ubiquiti-switching/,8,1,False,nav__count
+Netzwerk > Ubiquiti WiFi,Ubiquiti WiFi,https://www.jacob.de/ubiquiti-wifi/,6,1,False,nav__count
+Notebooks & Tablets,Notebooks & Tablets,https://www.jacob.de/notebook-tablet/,9280,464,False,pagination[last=464]
+Office,Office,https://www.jacob.de/office/,5940,297,False,pagination[last=297]
+PC & Zubehör,PC & Zubehör,https://www.jacob.de/pc/,10000,500,True,pagination[last=500]
+PC & Zubehör > Drucker & Scanner,Drucker & Scanner,https://www.jacob.de/drucker-scanner/,12975,649,True,nav__count
+PC & Zubehör > Drucker & Scanner > 3D Drucker,3D Drucker,https://www.jacob.de/3d-drucker/,21,2,False,nav__count
+PC & Zubehör > Drucker & Scanner > 3D-Druck Filamente,3D-Druck Filamente,https://www.jacob.de/drucker-3d-druck-filamente/,1282,65,False,nav__count
+PC & Zubehör > Drucker & Scanner > Drucker,Drucker,https://www.jacob.de/drucker/,491,25,False,nav__count
+PC & Zubehör > Drucker & Scanner > Druckerpatronen,Druckerpatronen,https://www.jacob.de/drucker-tintenpatronen/,3980,199,False,nav__count
+PC & Zubehör > Drucker & Scanner > Fotodrucker,Fotodrucker,https://www.jacob.de/fotodrucker/,21,2,False,nav__count
+PC & Zubehör > Drucker & Scanner > Fotopapier,Fotopapier,https://www.jacob.de/drucker-fotopapier/,227,12,False,nav__count
+PC & Zubehör > Drucker & Scanner > Kopierpapier,Kopierpapier,https://www.jacob.de/drucker-kopierpapier/,191,10,False,nav__count
+PC & Zubehör > Drucker & Scanner > Scanner,Scanner,https://www.jacob.de/scanner/,424,22,False,nav__count
+PC & Zubehör > Drucker & Scanner > Toner,Toner,https://www.jacob.de/laserdrucker-toner/,6338,317,False,nav__count
+PC & Zubehör > Eingabegeräte,Eingabegeräte,https://www.jacob.de/pc-eingabegeraete/,5496,275,False,nav__count
+PC & Zubehör > Festplatten & SSDs,Festplatten & SSDs,https://www.jacob.de/festplatten-hdd-ssd/,2821,142,False,nav__count
+PC & Zubehör > Kabel & Adapter,Kabel & Adapter,https://www.jacob.de/kabel-adapter/,16053,803,True,nav__count
+PC & Zubehör > Kabel & Adapter > Displayport Kabel & Adapter,Displayport Kabel & Adapter,https://www.jacob.de/displayport-kabel-adapter/,2258,113,False,nav__count
+PC & Zubehör > Kabel & Adapter > DVI Kabel & Adapter,DVI Kabel & Adapter,https://www.jacob.de/dvi-kabel-adapter/,475,24,False,nav__count
+PC & Zubehör > Kabel & Adapter > FireWire Kabel & Adapter,FireWire Kabel & Adapter,https://www.jacob.de/firewire-kabel-adapter/,48,3,False,nav__count
+PC & Zubehör > Kabel & Adapter > HDMI Kabel & Adapter,HDMI Kabel & Adapter,https://www.jacob.de/hdmi-kabel-adapter/,3471,174,False,nav__count
+PC & Zubehör > Kabel & Adapter > KVM Umschalter / Switch,KVM Umschalter / Switch,https://www.jacob.de/kvm-umschalter-switches/,812,41,False,nav__count
+PC & Zubehör > Kabel & Adapter > S-ATA Kabel & Adapter,S-ATA Kabel & Adapter,https://www.jacob.de/sata-kabel-adapter/,613,31,False,nav__count
+PC & Zubehör > Kabel & Adapter > Thunderbolt Kabel & Adapter,Thunderbolt Kabel & Adapter,https://www.jacob.de/thunderbolt-kabel-adapter/,102,6,False,nav__count
+PC & Zubehör > Kabel & Adapter > USB Hubs,USB Hubs,https://www.jacob.de/usb-hubs/,860,43,False,nav__count
+PC & Zubehör > Kabel & Adapter > USB Kabel & Adapter,USB Kabel & Adapter,https://www.jacob.de/usb-kabel-adapter/,7031,352,False,nav__count
+PC & Zubehör > Kabel & Adapter > VGA Kabel & Adapter,VGA Kabel & Adapter,https://www.jacob.de/vga-kabel-adapter/,383,20,False,nav__count
+PC & Zubehör > Komponenten,Komponenten,https://www.jacob.de/pc-komponenten/,370839,18542,True,nav__count
+PC & Zubehör > Komponenten > Anschlusserweiterung,Anschlusserweiterung,https://www.jacob.de/pc-anschlusserweiterung/,434,22,False,nav__count
+PC & Zubehör > Komponenten > Arbeitsspeicher,Arbeitsspeicher,https://www.jacob.de/arbeitsspeicher-ram/,355797,17790,True,nav__count
+PC & Zubehör > Komponenten > Arbeitsspeicher > DDR5-RAM Speichermodule,DDR5-RAM Speichermodule,https://www.jacob.de/ddr5-ram-speichermodule/,218,11,False,nav__count
+PC & Zubehör > Komponenten > Arbeitsspeicher > DDR4-RAM Speichermodule,DDR4-RAM Speichermodule,https://www.jacob.de/ddr4-ram-speichermodule/,3367,169,False,nav__count
+PC & Zubehör > Komponenten > Arbeitsspeicher > DDR3-RAM Speichermodule,DDR3-RAM Speichermodule,https://www.jacob.de/ddr3-ram-speichermodule/,4992,250,False,nav__count
+PC & Zubehör > Komponenten > Arbeitsspeicher > DDR2-RAM Speichermodule,DDR2-RAM Speichermodule,https://www.jacob.de/ddr2-ram-speichermodule/,314,16,False,nav__count
+PC & Zubehör > Komponenten > Gehäuse,Gehäuse,https://www.jacob.de/gehaeuse/,2080,104,False,nav__count
+PC & Zubehör > Komponenten > GPU-Rechenprozessoren,GPU-Rechenprozessoren,https://www.jacob.de/gpu-rechenprozessoren/,2,1,False,nav__count
+PC & Zubehör > Komponenten > Grafikkarten,Grafikkarten,https://www.jacob.de/grafikkarten/,528,27,False,nav__count
+PC & Zubehör > Komponenten > Kühlung,Kühlung,https://www.jacob.de/pc-kuehlung/,2479,124,False,nav__count
+PC & Zubehör > Komponenten > Mainboards,Mainboards,https://www.jacob.de/mainboards-motherboards/,797,40,False,nav__count
+PC & Zubehör > Komponenten > Netzteile,Netzteile,https://www.jacob.de/pc-netzteile/,6397,320,False,nav__count
+PC & Zubehör > Komponenten > Netzwerkadapter,Netzwerkadapter,https://www.jacob.de/netzwerkadapter/,854,43,False,nav__count
+PC & Zubehör > Komponenten > Netzwerkkarten,Netzwerkkarten,https://www.jacob.de/pc-netzwerkkarten/,96,5,False,nav__count
+PC & Zubehör > Komponenten > Prozessoren (CPU),Prozessoren (CPU),https://www.jacob.de/prozessoren-cpu/,1017,51,False,nav__count
+PC & Zubehör > Komponenten > RAM-Dummy,RAM-Dummy,https://www.jacob.de/ram-dummy/,4,1,False,nav__count
+PC & Zubehör > Komponenten > Soundkarten,Soundkarten,https://www.jacob.de/soundkarten/,57,3,False,nav__count
+PC & Zubehör > Komponenten > Speichercontroller,Speichercontroller,https://www.jacob.de/pc-speichercontroller/,297,15,False,nav__count
+PC & Zubehör > Laufwerke & Medien,Laufwerke & Medien,https://www.jacob.de/pc-laufwerke-medien/,1102,56,False,nav__count
+PC & Zubehör > Monitore,Monitore,https://www.jacob.de/monitore/,2405,121,False,nav__count
+PC & Zubehör > PC Systeme,PC Systeme,https://www.jacob.de/pc-systeme/,3417,171,False,nav__count
+PC & Zubehör > Software,Software,https://www.jacob.de/software/,462,24,False,nav__count
+PC & Zubehör > Webcams,Webcams,https://www.jacob.de/pc-webcams/,242,13,False,nav__count
+PC & Zubehör > Digital Signage Displays,Digital Signage Displays,https://www.jacob.de/digital-signage-display/,316,16,False,nav__count
+Smartphone & Foto,Smartphone & Foto,https://www.jacob.de/smartphone-foto/,9340,467,False,pagination[last=467]
+TV & Audio,TV & Audio,https://www.jacob.de/tv-audio/,5220,261,False,pagination[last=261]

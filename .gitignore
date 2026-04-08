@@ -1,0 +1,69 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env.local
+.env.*.local
+
+# ── Secrets & credentials (NEVER commit) ─────────────────────────────────────
+.env
+*.env
+credentials.json
+*-service-account*.json
+gcp-key*.json
+service_account*.json
+
+# ── Testing & coverage ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.coveragerc
+junit.xml
+
+# ── Ruff / linters ────────────────────────────────────────────────────────────
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ── Notebooks & POC artefacts (keep POC folders but ignore outputs) ───────────
+**/.ipynb_checkpoints/
+**/output/
+**/outputs/
+
+# ── Camoufox browser binary (fetched at build time) ──────────────────────────
+.camoufox/
+
+# ── Local discovery artefacts ────────────────────────────────────────────────
+discovery_report.json
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/

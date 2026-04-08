@@ -1,0 +1,66 @@
+[
+  {
+    "url": "https://www.jacob.de/produkte/apple-hintere-mpt93zm-a-artnr-100591943.html",
+    "artnr": "100591943",
+    "breadcrumbs": [
+      "Apple"
+    ],
+    "name": "Apple Hintere Abdeckung für Mobiltelefon (MPT93ZM/A)",
+    "brand": "Apple",
+    "sku": "100591943",
+    "mpn": "MPT93ZM/A",
+    "ean": "0194253416357",
+    "description": "Apple - Hintere Abdeckung für Mobiltelefon - mit MagSafe - Silikon - Elderberry - für iPhone 14 Plus (MPT93ZM/A) (geöffnet)",
+    "price": "8.63",
+    "currency": "EUR",
+    "availability": "InStock",
+    "category_path": [
+      "Apple",
+      "Apple Outlet"
+    ],
+    "pdp_parsed": true
+  },
+  {
+    "url": "https://www.jacob.de/produkte/apple-usb-c-auf-mw2q3zm-a-artnr-100488474.html",
+    "artnr": "100488474",
+    "breadcrumbs": [
+      "Apple"
+    ],
+    "name": "Apple USB-C auf 3.5mm Klinke Adapter - Adapter (MW2Q3ZM/A)",
+    "brand": "Apple",
+    "sku": "100488474",
+    "mpn": "MW2Q3ZM/A",
+    "ean": "0195949332937",
+    "description": "Apple USB-C auf 3.5mm Klinke Adapter - Adapter (MW2Q3ZM/A)",
+    "price": "9.44",
+    "currency": "EUR",
+    "availability": "InStock",
+    "category_path": [
+      "Apple",
+      "Apple Zubehör",
+      "Apple Adapter"
+    ],
+    "pdp_parsed": true
+  },
+  {
+    "url": "https://www.jacob.de/produkte/apple-beats-iphone-mcfg4ll-a-artnr-100582683.html",
+    "artnr": "100582683",
+    "breadcrumbs": [
+      "Apple"
+    ],
+    "name": "APPLE BEATS IPHONE 16 PLUS CASE WITH MAGSAFE - MIDNIGHTBLACK (MCFG4LL/A) (geöffnet)",
+    "brand": "Apple",
+    "sku": "100582683",
+    "mpn": "MCFG4LL/A",
+    "ean": "0195949909030",
+    "description": "APPLE BEATS IPHONE 16 PLUS CASE WITH MAGSAFE - MIDNIGHTBLACK (MCFG4LL/A) (geöffnet)",
+    "price": "9.63",
+    "currency": "EUR",
+    "availability": "InStock",
+    "category_path": [
+      "Apple",
+      "Apple Outlet"
+    ],
+    "pdp_parsed": true
+  }
+]
