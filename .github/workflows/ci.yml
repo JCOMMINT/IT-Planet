@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Run tests
+        run: pytest tests/unit/ tests/integration/ tests/e2e/ -v
+        env:
+          PROXY_USER: test
+          PROXY_PASS: test
+          GCS_BUCKET: test-bucket
+          FIRESTORE_PROJECT: test-project
+          SLACK_WEBHOOK_URL: https://hooks.slack.com/test
+          SMTP_HOST: localhost
+          SMTP_PORT: "587"
+          SMTP_USER: test@test.com
+          SMTP_PASS: test
+          NOTIFY_EMAIL_TO: test@test.com
+          API_KEY: test-api-key
+          CLOUD_TASKS_PROJECT: test-project
+          CLOUD_TASKS_LOCATION: europe-west1
+          CLOUD_TASKS_QUEUE: test-queue
+          JACOB_WORKER_URL: http://localhost:8081
+          IT_RESELL_WORKER_URL: http://localhost:8082
+          IT_MARKET_WORKER_URL: http://localhost:8083
+          TONITRUS_DISCOVERY_URL: http://localhost:8084
+          TONITRUS_MERGE_URL: http://localhost:8085
