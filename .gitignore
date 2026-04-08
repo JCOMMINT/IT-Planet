@@ -62,6 +62,14 @@ notebooks/
 **/output/
 **/outputs/
 
+# ── POC source folders (not production) ──────────────────────────────────────
+ARROW/
+JACOB/
+Tonitrus/
+it_market/
+it_resell/
+electro_info/
+
 # ── Camoufox browser binary (fetched at build time) ──────────────────────────
 .camoufox/
 
