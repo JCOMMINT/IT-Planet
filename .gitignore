@@ -53,8 +53,12 @@ junit.xml
 # ── Docker ────────────────────────────────────────────────────────────────────
 .dockerignore
 
-# ── Notebooks & POC artefacts (keep POC folders but ignore outputs) ───────────
+# ── Notebooks & POC artefacts ────────────────────────────────────────────────
+*.ipynb
 **/.ipynb_checkpoints/
+POC/
+poc/
+notebooks/
 **/output/
 **/outputs/
 
