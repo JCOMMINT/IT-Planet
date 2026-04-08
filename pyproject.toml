@@ -26,7 +26,7 @@ ignore = [
     "S105",   # hardcoded password (false positives on env var names)
 ]
 
-[tool.ruff.lint.pydocstring-conventions]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
