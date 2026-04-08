@@ -5,9 +5,10 @@ external dependencies (Firestore, Cloud Tasks, worker calls) mocked out.
 Tests the full request-response cycle including auth, job creation, and
 status polling.
 """
+
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,18 +24,22 @@ TEST_JOB_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 def client():
     """Return a TestClient for the CRS FastAPI app."""
     from crs.main import app
+
     return TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture(autouse=True)
 def _mock_externals():
     """Patch all external I/O for every e2e test."""
-    with patch("crs.main.firestore_client.create_job", new=AsyncMock()), \
-         patch("crs.main.tasks.enqueue", new=AsyncMock()):
+    with (
+        patch("crs.main.firestore_client.create_job", new=AsyncMock()),
+        patch("crs.main.tasks.enqueue", new=AsyncMock()),
+    ):
         yield
 
 
 # ── POST /scrape ──────────────────────────────────────────────────────────────
+
 
 class TestPostScrape:
     def test_returns_202_with_job_id(self, client):
@@ -90,19 +95,22 @@ class TestPostScrape:
 
     def test_job_id_is_uuid_format(self, client):
         import re
+
         resp = client.post(
             "/scrape",
-            json={"collector": "it_resell", "input_url": "https://www.it-resell.com/en/collections/all"},
+            json={
+                "collector": "it_resell",
+                "input_url": "https://www.it-resell.com/en/collections/all",
+            },
             headers={"X-Api-Key": VALID_KEY},
         )
         job_id = resp.json()["job_id"]
-        uuid_pattern = re.compile(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        )
+        uuid_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         assert uuid_pattern.match(job_id)
 
 
 # ── GET /jobs/{job_id} ────────────────────────────────────────────────────────
+
 
 class TestGetJob:
     def test_returns_queued_status(self, client):
@@ -174,6 +182,7 @@ class TestGetJob:
 
 
 # ── GET /health ───────────────────────────────────────────────────────────────
+
 
 class TestHealth:
     def test_health_check_returns_200(self, client):

@@ -1,4 +1,5 @@
 """Firestore state management for all collectors."""
+
 from __future__ import annotations
 
 import datetime
@@ -43,6 +44,7 @@ def _ttl(days: int) -> datetime.datetime:
 
 # ── Job CRUD ──────────────────────────────────────────────────────────────────
 
+
 async def create_job(job_id: str, collector: str, input_url: str) -> None:
     """Create a new job document in the ``jobs`` Firestore collection.
 
@@ -57,17 +59,23 @@ async def create_job(job_id: str, collector: str, input_url: str) -> None:
         input_url: The URL to be scraped by the collector.
     """
     db = _get_db()
-    await db.collection("jobs").document(job_id).set({
-        "job_id": job_id,
-        "collector": collector,
-        "input_url": input_url,
-        "status": "queued",
-        "output_url": None,
-        "error": None,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "updated_at": firestore.SERVER_TIMESTAMP,
-        "expires_at": _ttl(JOB_TTL_DAYS),
-    })
+    await (
+        db.collection("jobs")
+        .document(job_id)
+        .set(
+            {
+                "job_id": job_id,
+                "collector": collector,
+                "input_url": input_url,
+                "status": "queued",
+                "output_url": None,
+                "error": None,
+                "created_at": firestore.SERVER_TIMESTAMP,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+                "expires_at": _ttl(JOB_TTL_DAYS),
+            }
+        )
+    )
 
 
 async def get_job(job_id: str) -> dict | None:
@@ -85,7 +93,7 @@ async def get_job(job_id: str) -> dict | None:
     return doc.to_dict() if doc.exists else None
 
 
-async def update_job(job_id: str, **fields: Any) -> None:
+async def update_job(job_id: str, **fields: Any) -> None:  # noqa: ANN401
     """Update arbitrary fields on an existing job document.
 
     Automatically sets ``updated_at`` to the Firestore server timestamp on
@@ -103,6 +111,7 @@ async def update_job(job_id: str, **fields: Any) -> None:
 
 # ── Tonitrus fan-out ──────────────────────────────────────────────────────────
 
+
 async def tonitrus_set_expected(run_id: str, expected_count: int) -> None:
     """Initialise the Tonitrus fan-out counters on a job document.
 
@@ -116,10 +125,16 @@ async def tonitrus_set_expected(run_id: str, expected_count: int) -> None:
             back for this run.
     """
     db = _get_db()
-    await db.collection("jobs").document(run_id).update({
-        "tonitrus_expected_count": expected_count,
-        "tonitrus_completed_count": 0,
-    })
+    await (
+        db.collection("jobs")
+        .document(run_id)
+        .update(
+            {
+                "tonitrus_expected_count": expected_count,
+                "tonitrus_completed_count": 0,
+            }
+        )
+    )
 
 
 async def tonitrus_increment_completed(run_id: str) -> int:
@@ -173,6 +188,7 @@ async def tonitrus_get_counts(run_id: str) -> tuple[int, int]:
 
 
 # ── Tonitrus product storage ───────────────────────────────────────────────────
+
 
 async def tonitrus_write_products(run_id: str, category_id: str, products: list[dict]) -> None:
     """Batch-write scraped product records to Firestore for a Tonitrus run.

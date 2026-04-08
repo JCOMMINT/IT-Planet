@@ -1,6 +1,7 @@
-"""Cloud Run Service – public API gateway."""
-import sys
+"""Cloud Run Service - public API gateway."""
+
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -18,6 +19,7 @@ COLLECTORS = Literal["jacob", "it_resell", "it_market", "tonitrus"]
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
+
 
 def _require_api_key(x_api_key: str = Header(...)) -> None:
     """Validate the ``X-Api-Key`` request header against the configured secret.
@@ -37,6 +39,7 @@ def _require_api_key(x_api_key: str = Header(...)) -> None:
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
+
 
 class ScrapeRequest(BaseModel):
     """Request body for the ``POST /scrape`` endpoint.
@@ -87,8 +90,9 @@ class JobStatusResponse(BaseModel):
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+
 @app.post("/scrape", response_model=ScrapeResponse, status_code=202)
-async def scrape(body: ScrapeRequest, x_api_key: str = Header(...)):
+async def scrape(body: ScrapeRequest, x_api_key: str = Header(...)) -> ScrapeResponse:
     """Enqueue a new scrape job for the specified collector.
 
     Validates the API key, creates a Firestore job document with status
@@ -112,7 +116,9 @@ async def scrape(body: ScrapeRequest, x_api_key: str = Header(...)):
 
     worker_url = config.COLLECTOR_WORKER_URLS.get(body.collector)
     if not worker_url:
-        raise HTTPException(status_code=500, detail=f"Worker URL not configured for {body.collector}")
+        raise HTTPException(
+            status_code=500, detail=f"Worker URL not configured for {body.collector}"
+        )
 
     job_id = str(uuid.uuid4())
     input_url = str(body.input_url)
@@ -128,7 +134,7 @@ async def scrape(body: ScrapeRequest, x_api_key: str = Header(...)):
 
 
 @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job(job_id: str, x_api_key: str = Header(...)):
+async def get_job(job_id: str, x_api_key: str = Header(...)) -> JobStatusResponse:
     """Retrieve the current status of a scrape job by its ID.
 
     Args:
@@ -159,7 +165,7 @@ async def get_job(job_id: str, x_api_key: str = Header(...)):
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict:
     """Health-check endpoint for Cloud Run liveness probes.
 
     Returns:

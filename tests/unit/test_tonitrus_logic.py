@@ -1,18 +1,19 @@
 """Unit tests for Tonitrus worker and discovery parsing logic."""
+
 from __future__ import annotations
 
 import pytest
 
+from collectors.tonitrus.discovery import _extract_child_cat_urls
 from collectors.tonitrus.worker import (
     _page_url,
-    _parse_price,
     _parse_plp_cards,
+    _parse_price,
     _parse_total,
 )
-from collectors.tonitrus.discovery import _extract_child_cat_urls
-
 
 # ── _page_url ─────────────────────────────────────────────────────────────────
+
 
 class TestPageUrl:
     def test_page_1(self):
@@ -38,6 +39,7 @@ class TestPageUrl:
 
 # ── _parse_total ──────────────────────────────────────────────────────────────
 
+
 class TestParseTotal:
     def test_parses_standard_format(self, tonitrus_plp_html):
         assert _parse_total(tonitrus_plp_html) == 127
@@ -56,15 +58,19 @@ class TestParseTotal:
 
 # ── _parse_price ──────────────────────────────────────────────────────────────
 
+
 class TestParsePrice:
-    @pytest.mark.parametrize("text,expected", [
-        ("€ 4,500.00", 4500.0),
-        ("3200", 3200.0),
-        ("1.234,56", 1234.56),
-        ("", None),
-        ("N/A", None),
-        ("0.00", 0.0),
-    ])
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("€ 4,500.00", 4500.0),
+            ("3200", 3200.0),
+            ("1.234,56", 1234.56),
+            ("", None),
+            ("N/A", None),
+            ("0.00", 0.0),
+        ],
+    )
     def test_various_formats(self, text, expected):
         result = _parse_price(text)
         if expected is None:
@@ -74,6 +80,7 @@ class TestParsePrice:
 
 
 # ── _parse_plp_cards ──────────────────────────────────────────────────────────
+
 
 class TestParsePlpCards:
     def test_extracts_products(self, tonitrus_plp_html):
@@ -109,6 +116,7 @@ class TestParsePlpCards:
 
 
 # ── _extract_child_cat_urls ───────────────────────────────────────────────────
+
 
 class TestExtractChildCatUrls:
     def test_finds_nav_links(self):

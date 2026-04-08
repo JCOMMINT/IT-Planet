@@ -13,6 +13,7 @@ Sections:
     - Cloud Tasks: Queue configuration for async job dispatch.
     - Worker URLs: Cloud Run service endpoints for each collector.
 """
+
 import os
 
 # ── Proxy ────────────────────────────────────────────────────────────────────

@@ -1,8 +1,9 @@
-"""Tonitrus merge job – reads all products from Firestore, writes CSV to GCS."""
+"""Tonitrus merge job - reads all products from Firestore, writes CSV to GCS."""
+
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -16,17 +17,28 @@ from shared import firestore_client, gcs_client, notifications
 app = FastAPI()
 
 CSV_FIELDS = [
-    "product_name", "product_code", "product_url",
-    "category", "breadcrumb", "description", "ean_upc", "brand",
-    "price", "condition", "stock", "availability",
+    "product_name",
+    "product_code",
+    "product_url",
+    "category",
+    "breadcrumb",
+    "description",
+    "ean_upc",
+    "brand",
+    "price",
+    "condition",
+    "stock",
+    "availability",
     "variants",
-    "input_url", "is_cto",
-    "status", "error_message",
+    "input_url",
+    "is_cto",
+    "status",
+    "error_message",
 ]
 
 
 @app.post("/")
-async def handle(request: Request):
+async def handle(request: Request) -> JSONResponse:
     """Handle a Cloud Tasks invocation to merge and export Tonitrus products.
 
     Reads all per-category product documents from Firestore, performs a
@@ -78,7 +90,7 @@ async def handle(request: Request):
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict:
     """Return a liveness check payload.
 
     Returns:

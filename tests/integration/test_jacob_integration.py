@@ -1,4 +1,5 @@
-"""Integration tests for Jacob scraper – mocked HTTP, real logic."""
+"""Integration tests for Jacob scraper - mocked HTTP, real logic."""
+
 from __future__ import annotations
 
 import asyncio
@@ -7,22 +8,22 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from collectors.jacob.scraper import (
+    MAX_PAGE,
     _fetch,
     _get_price_ranges,
     _last_page,
     _scrape_plp_range,
-    MAX_PAGE,
 )
 from tests.conftest import (
     JACOB_PLP_EMPTY_HTML,
     JACOB_PLP_HTML,
-    JACOB_PDP_HTML,
 )
 
 pytestmark = pytest.mark.integration
 
 
 # ── _fetch ────────────────────────────────────────────────────────────────────
+
 
 class TestFetch:
     @pytest.mark.asyncio
@@ -86,6 +87,7 @@ class TestFetch:
 
 # ── _last_page ────────────────────────────────────────────────────────────────
 
+
 class TestLastPage:
     @pytest.mark.asyncio
     async def test_finds_last_nonempty_page(self):
@@ -106,6 +108,7 @@ class TestLastPage:
     @pytest.mark.asyncio
     async def test_caps_at_max_page(self):
         """Binary search respects MAX_PAGE ceiling."""
+
         async def always_has_products(session, url, sem, attempt=0):
             return JACOB_PLP_HTML
 
@@ -117,10 +120,12 @@ class TestLastPage:
 
 # ── _get_price_ranges ─────────────────────────────────────────────────────────
 
+
 class TestGetPriceRanges:
     @pytest.mark.asyncio
     async def test_returns_no_filter_when_under_cap(self):
         """When last_page < MAX_PAGE, no splitting needed."""
+
         async def fake_last_page(session, cat_url, sem, pmin=None, pmax=None):
             return 10  # Well under MAX_PAGE
 
@@ -147,8 +152,10 @@ class TestGetPriceRanges:
             return '<html><input data-price-max="10000" /></html>'
 
         sem = asyncio.Semaphore(5)
-        with patch("collectors.jacob.scraper._last_page", side_effect=fake_last_page), \
-             patch("collectors.jacob.scraper._fetch", side_effect=fake_fetch):
+        with (
+            patch("collectors.jacob.scraper._last_page", side_effect=fake_last_page),
+            patch("collectors.jacob.scraper._fetch", side_effect=fake_fetch),
+        ):
             ranges = await _get_price_ranges(MagicMock(), "https://jacob.de/cat", sem)
 
         assert len(ranges) > 1
@@ -156,6 +163,7 @@ class TestGetPriceRanges:
 
 
 # ── _scrape_plp_range ─────────────────────────────────────────────────────────
+
 
 class TestScrapePlpRange:
     @pytest.mark.asyncio
@@ -167,8 +175,10 @@ class TestScrapePlpRange:
             return JACOB_PLP_HTML
 
         sem = asyncio.Semaphore(5)
-        with patch("collectors.jacob.scraper._last_page", side_effect=fake_last_page), \
-             patch("collectors.jacob.scraper._fetch", side_effect=fake_fetch):
+        with (
+            patch("collectors.jacob.scraper._last_page", side_effect=fake_last_page),
+            patch("collectors.jacob.scraper._fetch", side_effect=fake_fetch),
+        ):
             urls = await _scrape_plp_range(MagicMock(), "https://jacob.de/cat", sem, None, None)
 
         assert len(urls) > 0
@@ -177,6 +187,7 @@ class TestScrapePlpRange:
     @pytest.mark.asyncio
     async def test_deduplicates_across_pages(self):
         """Same URL on two pages should appear only once."""
+
         async def fake_last_page(session, cat_url, sem, pmin=None, pmax=None):
             return 2
 
@@ -184,8 +195,10 @@ class TestScrapePlpRange:
             return JACOB_PLP_HTML  # Both pages return same products
 
         sem = asyncio.Semaphore(5)
-        with patch("collectors.jacob.scraper._last_page", side_effect=fake_last_page), \
-             patch("collectors.jacob.scraper._fetch", side_effect=fake_fetch):
+        with (
+            patch("collectors.jacob.scraper._last_page", side_effect=fake_last_page),
+            patch("collectors.jacob.scraper._fetch", side_effect=fake_fetch),
+        ):
             urls = await _scrape_plp_range(MagicMock(), "https://jacob.de/cat", sem, None, None)
 
         assert len(urls) == len(set(urls))

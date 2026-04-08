@@ -1,10 +1,9 @@
 """Unit tests for collectors/jacob/scraper.py.
 
-All tests are pure – no network, no GCS, no Firestore.
+All tests are pure - no network, no GCS, no Firestore.
 """
-from __future__ import annotations
 
-import json
+from __future__ import annotations
 
 import pytest
 
@@ -18,8 +17,8 @@ from collectors.jacob.scraper import (
     _plp_url,
 )
 
-
 # ── _plp_url ──────────────────────────────────────────────────────────────────
+
 
 class TestPlpUrl:
     def test_no_price_filter(self):
@@ -41,6 +40,7 @@ class TestPlpUrl:
 
 # ── _is_empty ─────────────────────────────────────────────────────────────────
 
+
 class TestIsEmpty:
     def test_empty_page(self, jacob_plp_empty_html):
         assert _is_empty(jacob_plp_empty_html) is True
@@ -58,6 +58,7 @@ class TestIsEmpty:
 
 
 # ── _parse_product_urls ───────────────────────────────────────────────────────
+
 
 class TestParseProductUrls:
     def test_extracts_full_urls(self, jacob_plp_html):
@@ -91,6 +92,7 @@ class TestParseProductUrls:
 
 # ── _artnr_from_url ───────────────────────────────────────────────────────────
 
+
 class TestArtnrFromUrl:
     def test_standard_url(self):
         assert _artnr_from_url("https://www.jacob.de/produkte/laptop-abc-12345") == "12345"
@@ -107,27 +109,32 @@ class TestArtnrFromUrl:
 
 # ── _normalize_condition ──────────────────────────────────────────────────────
 
+
 class TestNormalizeCondition:
-    @pytest.mark.parametrize("raw,expected", [
-        ("https://schema.org/NewCondition", "New"),
-        ("NewCondition", "New"),
-        ("neu", "New"),
-        ("brand new item", "New"),
-        ("RefurbishedCondition", "Refurbished"),
-        ("renewed", "Refurbished"),
-        ("B-Ware", "Open Box"),
-        ("bware", "Open Box"),
-        ("Geöffnet", "Open Box"),
-        ("Used", "Used"),
-        ("gebraucht", "Used"),
-        ("SomeUnknownCondition", "SomeUnknownCondition"),
-        ("", ""),
-    ])
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("https://schema.org/NewCondition", "New"),
+            ("NewCondition", "New"),
+            ("neu", "New"),
+            ("brand new item", "New"),
+            ("RefurbishedCondition", "Refurbished"),
+            ("renewed", "Refurbished"),
+            ("B-Ware", "Open Box"),
+            ("bware", "Open Box"),
+            ("Geöffnet", "Open Box"),
+            ("Used", "Used"),
+            ("gebraucht", "Used"),
+            ("SomeUnknownCondition", "SomeUnknownCondition"),
+            ("", ""),
+        ],
+    )
     def test_condition_mapping(self, raw, expected):
         assert _normalize_condition(raw) == expected
 
 
 # ── _extract_jsonld ───────────────────────────────────────────────────────────
+
 
 class TestExtractJsonld:
     def test_single_offer(self):
@@ -161,7 +168,11 @@ class TestExtractJsonld:
             "brand": "HPE",
             "offers": [
                 {"price": "500.00", "priceCurrency": "EUR", "itemCondition": "NewCondition"},
-                {"price": "350.00", "priceCurrency": "EUR", "itemCondition": "RefurbishedCondition"},
+                {
+                    "price": "350.00",
+                    "priceCurrency": "EUR",
+                    "itemCondition": "RefurbishedCondition",
+                },
             ],
         }
         result = _extract_jsonld(data)
@@ -183,6 +194,7 @@ class TestExtractJsonld:
 
 
 # ── _parse_pdp ────────────────────────────────────────────────────────────────
+
 
 class TestParsePdp:
     def test_parses_single_offer(self, jacob_pdp_html):
@@ -223,6 +235,7 @@ class TestParsePdp:
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def jacob_plp_empty_html():

@@ -1,14 +1,15 @@
-"""Tonitrus discovery job – scrapes category tree live via camoufox.
+"""Tonitrus discovery job - scrapes category tree live via camoufox.
+
 Writes leaf category URLs to Firestore, enqueues one Cloud Task per leaf.
 """
+
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-import re
 import traceback
 
 from camoufox.async_api import AsyncCamoufox
@@ -26,18 +27,30 @@ BACKOFF_BASE = 5  # seconds
 app = FastAPI()
 
 CSV_FIELDS = [
-    "product_name", "product_code", "product_url",
-    "category", "breadcrumb", "description", "ean_upc", "brand",
-    "price", "condition", "stock", "availability",
-    "variants",   # JSON string
-    "input_url", "is_cto",
-    "status", "error_message",
+    "product_name",
+    "product_code",
+    "product_url",
+    "category",
+    "breadcrumb",
+    "description",
+    "ean_upc",
+    "brand",
+    "price",
+    "condition",
+    "stock",
+    "availability",
+    "variants",  # JSON string
+    "input_url",
+    "is_cto",
+    "status",
+    "error_message",
 ]
 
 
 # ── Camoufox helpers ──────────────────────────────────────────────────────────
 
-async def _goto(page, url: str, attempt: int = 0) -> bool:
+
+async def _goto(page: object, url: str, attempt: int = 0) -> bool:
     """Navigate a Camoufox page to ``url`` with retry on failure.
 
     Waits for the ``"domcontentloaded"`` event with a 90-second timeout.
@@ -60,7 +73,8 @@ async def _goto(page, url: str, attempt: int = 0) -> bool:
     except Exception:
         if attempt < MAX_RETRIES:
             import asyncio
-            await asyncio.sleep(BACKOFF_BASE * (2 ** attempt))
+
+            await asyncio.sleep(BACKOFF_BASE * (2**attempt))
             return await _goto(page, url, attempt + 1)
         return False
 
@@ -132,6 +146,7 @@ def _extract_child_cat_urls(html: str, current_url: str) -> list[str]:
         A deduplicated list of absolute child category URLs.
     """
     from selectolax.parser import HTMLParser
+
     tree = HTMLParser(html)
     children: list[str] = []
 
@@ -163,8 +178,9 @@ def _extract_child_cat_urls(html: str, current_url: str) -> list[str]:
 
 # ── FastAPI handler ───────────────────────────────────────────────────────────
 
+
 @app.post("/")
-async def handle(request: Request):
+async def handle(request: Request) -> JSONResponse:
     """Handle a Cloud Tasks invocation to discover Tonitrus leaf categories.
 
     Reads ``run_id`` and optional ``input_url`` from the JSON body, runs
@@ -216,7 +232,8 @@ async def handle(request: Request):
             )
 
         notifications.slack_notify(
-            f":mag: *tonitrus* discovery complete – {expected_count} categories queued\nrun_id: `{run_id}`"
+            f":mag: *tonitrus* discovery complete - {expected_count} categories queued"
+            f"\nrun_id: `{run_id}`"
         )
         return JSONResponse({"ok": True, "leaf_count": expected_count})
 
@@ -231,7 +248,7 @@ async def handle(request: Request):
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict:
     """Return a liveness check payload.
 
     Returns:

@@ -1,4 +1,5 @@
 """GCS CSV upload helper."""
+
 import csv
 import datetime
 import io
@@ -43,7 +44,9 @@ def _blob_path(collector: str, run_id: str) -> str:
     return f"{collector}/{date_str}/{run_id}.csv"
 
 
-def upload_csv(run_id: str, collector: str, rows: list[dict[str, Any]], fieldnames: list[str]) -> str:
+def upload_csv(
+    run_id: str, collector: str, rows: list[dict[str, Any]], fieldnames: list[str]
+) -> str:
     """Serialise a list of row dicts to CSV and upload the result to GCS.
 
     Columns are written in the order specified by ``fieldnames``. Missing or

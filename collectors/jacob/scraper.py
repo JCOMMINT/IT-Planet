@@ -1,16 +1,16 @@
-"""Jacob.de scraper – curl_cffi + price-range splitting.
+"""Jacob.de scraper - curl_cffi + price-range splitting.
 
 This module implements an async scraper for jacob.de product listings.
 It discovers all product URLs from category pages (PLPs), splitting the
 catalogue by price range when a category exceeds the per-range page limit,
 then fetches and parses each product detail page (PDP) via JSON-LD.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import re
-from typing import Optional
 
 from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
@@ -21,16 +21,35 @@ MAX_RETRIES = 3
 SEMAPHORE_LIMIT = 5
 
 CSV_FIELDS = [
-    "artnr", "name", "url", "sku", "mpn", "ean", "description", "brand",
-    "category_path", "breadcrumbs", "price", "currency",
-    "price_min", "price_max", "condition", "availability",
-    "stock", "delivery_time", "raw_condition",
-    "jsonld_offer_count", "jsonld_price_min", "jsonld_price_max",
-    "status", "error_message",
+    "artnr",
+    "name",
+    "url",
+    "sku",
+    "mpn",
+    "ean",
+    "description",
+    "brand",
+    "category_path",
+    "breadcrumbs",
+    "price",
+    "currency",
+    "price_min",
+    "price_max",
+    "condition",
+    "availability",
+    "stock",
+    "delivery_time",
+    "raw_condition",
+    "jsonld_offer_count",
+    "jsonld_price_min",
+    "jsonld_price_max",
+    "status",
+    "error_message",
 ]
 
 
 # ── URL helpers ───────────────────────────────────────────────────────────────
+
 
 def _plp_url(cat_url: str, page: int, pmin: float | None = None, pmax: float | None = None) -> str:
     """Build a paginated product listing page URL with optional price filters.
@@ -55,7 +74,10 @@ def _plp_url(cat_url: str, page: int, pmin: float | None = None, pmax: float | N
 
 # ── Fetch with retry ──────────────────────────────────────────────────────────
 
-async def _fetch(session: AsyncSession, url: str, sem: asyncio.Semaphore, attempt: int = 0) -> str | None:
+
+async def _fetch(
+    session: AsyncSession, url: str, sem: asyncio.Semaphore, attempt: int = 0
+) -> str | None:
     """Fetch a URL with exponential-backoff retry on rate-limit or network errors.
 
     The semaphore is released between attempts so retries do not deadlock
@@ -78,19 +100,20 @@ async def _fetch(session: AsyncSession, url: str, sem: asyncio.Semaphore, attemp
                 r = await session.get(url, timeout=45)
             except Exception:
                 if attempt < MAX_RETRIES:
-                    await asyncio.sleep(1.5 * (2 ** attempt))
+                    await asyncio.sleep(1.5 * (2**attempt))
                     continue
                 return None
         if r.status_code == 200:
             return r.text
         if r.status_code in (429, 403, 503) and attempt < MAX_RETRIES:
-            await asyncio.sleep(1.5 * (2 ** attempt))
+            await asyncio.sleep(1.5 * (2**attempt))
             continue
         return None
     return None
 
 
 # ── Pagination ────────────────────────────────────────────────────────────────
+
 
 def _is_empty(html: str) -> bool:
     """Determine whether a PLP response contains any product links.
@@ -217,6 +240,7 @@ async def _get_price_ranges(
 
 # ── PLP parsing ───────────────────────────────────────────────────────────────
 
+
 def _parse_product_urls(html: str) -> set[str]:
     """Extract and deduplicate absolute product URLs from a PLP HTML page.
 
@@ -261,10 +285,7 @@ async def _scrape_plp_range(
         Set of absolute product URLs found across all pages in this range.
     """
     last_p = await _last_page(session, cat_url, sem, pmin, pmax)
-    tasks = [
-        _fetch(session, _plp_url(cat_url, p, pmin, pmax), sem)
-        for p in range(1, last_p + 1)
-    ]
+    tasks = [_fetch(session, _plp_url(cat_url, p, pmin, pmax), sem) for p in range(1, last_p + 1)]
     results = await asyncio.gather(*tasks)
     urls: set[str] = set()
     for html in results:
@@ -274,6 +295,7 @@ async def _scrape_plp_range(
 
 
 # ── PDP parsing ───────────────────────────────────────────────────────────────
+
 
 def _normalize_condition(raw: str) -> str:
     """Map a raw item-condition string to a canonical label.
@@ -450,6 +472,7 @@ async def _scrape_pdp(session: AsyncSession, url: str, sem: asyncio.Semaphore) -
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 async def run(input_url: str, run_id: str) -> list[dict]:
     """Scrape all products from a jacob.de category URL.
 
@@ -466,7 +489,7 @@ async def run(input_url: str, run_id: str) -> list[dict]:
         List of product row dictionaries, deduplicated by ``artnr``. Each
         row contains the fields defined in ``CSV_FIELDS``.
     """
-    from shared.http_client import make_dc_proxy, make_curl_session
+    from shared.http_client import make_curl_session, make_dc_proxy
 
     proxy = make_dc_proxy(sticky=True)
     sem = asyncio.Semaphore(SEMAPHORE_LIMIT)

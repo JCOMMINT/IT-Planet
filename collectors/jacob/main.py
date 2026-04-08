@@ -1,28 +1,28 @@
-"""Jacob worker – Cloud Run Service triggered by Cloud Tasks.
+"""Jacob worker - Cloud Run Service triggered by Cloud Tasks.
 
 Exposes a FastAPI application with a POST endpoint that receives a Cloud Tasks
 payload, invokes the Jacob scraper, uploads results to GCS, and updates the
 corresponding Firestore job document with status and output location.
 """
-import sys
+
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-import asyncio
 import traceback
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from collectors.jacob.scraper import CSV_FIELDS, run
 from shared import firestore_client, gcs_client, notifications
-from collectors.jacob.scraper import run, CSV_FIELDS
 
 app = FastAPI()
 
 
 @app.post("/")
-async def handle(request: Request):
+async def handle(request: Request) -> JSONResponse:
     """Handle an inbound Cloud Tasks job request for the Jacob scraper.
 
     Parses the JSON payload, marks the Firestore job as running, executes
@@ -48,9 +48,7 @@ async def handle(request: Request):
     try:
         rows = await run(input_url, run_id)
         gcs_uri = gcs_client.upload_csv(run_id, "jacob", rows, CSV_FIELDS)
-        await firestore_client.update_job(
-            run_id, status="complete", output_url=gcs_uri
-        )
+        await firestore_client.update_job(run_id, status="complete", output_url=gcs_uri)
         error_count = sum(1 for r in rows if r.get("status") == "failed")
         notifications.notify_complete("jacob", run_id, gcs_uri, len(rows), error_count)
         return JSONResponse({"ok": True, "rows": len(rows)})
@@ -66,7 +64,7 @@ async def handle(request: Request):
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict:
     """Return a liveness probe response.
 
     Returns:

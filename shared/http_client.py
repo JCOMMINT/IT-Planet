@@ -4,8 +4,11 @@ Provides convenience functions for building proxy dictionaries compatible with
 ``curl_cffi`` (datacenter and residential) and Camoufox, as well as a factory
 for creating authenticated ``AsyncSession`` objects with browser impersonation.
 """
+
 import random
+
 from curl_cffi.requests import AsyncSession
+
 from . import config
 
 
@@ -16,7 +19,7 @@ def _session_token() -> str:
         A string representation of a random float, used as a unique session
         identifier in proxy usernames.
     """
-    return str(random.random())
+    return str(random.random())  # noqa: S311
 
 
 def make_dc_proxy(sticky: bool = False, slot: int | None = None) -> dict:

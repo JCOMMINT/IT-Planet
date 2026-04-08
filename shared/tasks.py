@@ -1,4 +1,5 @@
 """Cloud Tasks enqueue helper."""
+
 import json
 
 from google.cloud import tasks_v2

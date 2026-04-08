@@ -1,4 +1,5 @@
 """Unit tests for collectors/it_market/scraper.py."""
+
 from __future__ import annotations
 
 import json
@@ -6,15 +7,14 @@ import json
 import pytest
 
 from collectors.it_market.scraper import (
-    _extract_subcats,
     _extract_top_cats,
     _parse_money,
     _parse_plp,
     _sort_url,
 )
 
-
 # ── _sort_url ─────────────────────────────────────────────────────────────────
+
 
 class TestSortUrl:
     def test_basic_construction(self):
@@ -34,15 +34,19 @@ class TestSortUrl:
 
 # ── _parse_money ──────────────────────────────────────────────────────────────
 
+
 class TestParseMoney:
-    @pytest.mark.parametrize("text,expected", [
-        ("€ 799.00", 799.0),
-        ("1.234,56", 1234.56),   # European format with dot thousands
-        ("1,234.56", 1234.56),
-        ("500", 500.0),
-        ("", None),
-        ("Price on Request", None),
-    ])
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("€ 799.00", 799.0),
+            ("1.234,56", 1234.56),  # European format with dot thousands
+            ("1,234.56", 1234.56),
+            ("500", 500.0),
+            ("", None),
+            ("Price on Request", None),
+        ],
+    )
     def test_various_formats(self, text, expected):
         result = _parse_money(text)
         if expected is None:
@@ -52,6 +56,7 @@ class TestParseMoney:
 
 
 # ── _extract_top_cats ─────────────────────────────────────────────────────────
+
 
 class TestExtractTopCats:
     def test_extracts_nav_links(self):
@@ -84,6 +89,7 @@ class TestExtractTopCats:
 
 
 # ── _parse_plp ────────────────────────────────────────────────────────────────
+
 
 class TestParsePlp:
     def test_extracts_product_with_variants(self, it_market_plp_html):

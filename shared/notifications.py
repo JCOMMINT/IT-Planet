@@ -1,4 +1,5 @@
 """Slack webhook + SMTP email notifications."""
+
 import smtplib
 import ssl
 from email.mime.text import MIMEText
@@ -7,8 +8,8 @@ import httpx
 
 from . import config
 
-
 # ── Slack ─────────────────────────────────────────────────────────────────────
+
 
 def slack_notify(message: str) -> None:
     """Send a plain-text message to the configured Slack webhook.
@@ -21,11 +22,12 @@ def slack_notify(message: str) -> None:
     """
     try:
         httpx.post(config.SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
-    except Exception:
+    except Exception:  # noqa: S110
         pass  # Never let notification failure kill the worker
 
 
 # ── SMTP Email ────────────────────────────────────────────────────────────────
+
 
 def email_notify(subject: str, body: str) -> None:
     """Send a plain-text notification email via SMTP with STARTTLS.
@@ -48,11 +50,12 @@ def email_notify(subject: str, body: str) -> None:
             s.starttls(context=ctx)
             s.login(config.SMTP_USER, config.SMTP_PASS)
             s.sendmail(config.SMTP_FROM, [config.NOTIFICATION_EMAIL], msg.as_string())
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
 
 # ── Structured events ─────────────────────────────────────────────────────────
+
 
 def notify_start(collector: str, run_id: str, input_url: str) -> None:
     """Send a Slack notification indicating that a collector job has started.
@@ -88,7 +91,7 @@ def notify_complete(
         f"output: `{gcs_uri}`"
     )
     email_notify(
-        subject=f"[IT Planet] {collector} scrape complete – {run_id}",
+        subject=f"[IT Planet] {collector} scrape complete - {run_id}",
         body=(
             f"Collector: {collector}\n"
             f"Run ID: {run_id}\n"
@@ -109,7 +112,7 @@ def notify_error(collector: str, run_id: str, error: str) -> None:
     """
     slack_notify(f":x: *{collector}* failed\nrun_id: `{run_id}`\nerror: {error}")
     email_notify(
-        subject=f"[IT Planet] {collector} scrape FAILED – {run_id}",
+        subject=f"[IT Planet] {collector} scrape FAILED - {run_id}",
         body=f"Collector: {collector}\nRun ID: {run_id}\nError: {error}\n",
     )
 
@@ -123,6 +126,5 @@ def notify_rate_limited(collector: str, run_id: str, url: str) -> None:
         url: The specific URL that triggered the rate-limit response.
     """
     slack_notify(
-        f":warning: *{collector}* rate-limited after retries\n"
-        f"run_id: `{run_id}`\nurl: {url}"
+        f":warning: *{collector}* rate-limited after retries\n" f"run_id: `{run_id}`\nurl: {url}"
     )

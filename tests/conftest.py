@@ -1,7 +1,9 @@
 """Shared pytest fixtures and HTML stubs for all test layers."""
+
 from __future__ import annotations
 
 import os
+
 import pytest
 
 # ── Environment stub (must be set before any shared.config import) ────────────

@@ -1,10 +1,12 @@
-"""Tonitrus worker – scrapes one leaf category (PLPs + PDPs for CTO).
+"""Tonitrus worker - scrapes one leaf category (PLPs + PDPs for CTO).
+
 Writes products to Firestore. Last worker triggers merge Cloud Task.
 """
+
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -31,7 +33,8 @@ app = FastAPI()
 
 # ── Camoufox helpers ──────────────────────────────────────────────────────────
 
-async def _goto(page, url: str, attempt: int = 0) -> bool:
+
+async def _goto(page: object, url: str, attempt: int = 0) -> bool:
     """Navigate a Camoufox page to ``url`` with retry on failure.
 
     Waits for the ``"domcontentloaded"`` event with a 90-second timeout.
@@ -53,7 +56,7 @@ async def _goto(page, url: str, attempt: int = 0) -> bool:
         return True
     except Exception:
         if attempt < MAX_RETRIES:
-            await asyncio.sleep(BACKOFF_BASE * (2 ** attempt))
+            await asyncio.sleep(BACKOFF_BASE * (2**attempt))
             return await _goto(page, url, attempt + 1)
         return False
 
@@ -78,6 +81,7 @@ def _page_url(cat_url: str, page_num: int) -> str:
 
 
 # ── PLP parsing ───────────────────────────────────────────────────────────────
+
 
 def _parse_total(html: str) -> int:
     """Parse the total product count from a Tonitrus PLP page.
@@ -132,8 +136,10 @@ def _parse_plp_cards(html: str, cat_url: str) -> list[dict]:
 
         code_el = card.css_first("span.product-code, div.product-code, input[name='product-id']")
         product_code = (
-            code_el.text(strip=True) if code_el and code_el.tag != "input"
-            else code_el.attributes.get("value", "") if code_el
+            code_el.text(strip=True)
+            if code_el and code_el.tag != "input"
+            else code_el.attributes.get("value", "")
+            if code_el
             else ""
         )
         if not product_code:
@@ -154,23 +160,25 @@ def _parse_plp_cards(html: str, cat_url: str) -> list[dict]:
         # CTO detection
         is_cto = bool(card.css_first("span.is-cto, div.cto-badge, [data-cto='true']"))
 
-        products.append({
-            "product_name": name,
-            "product_code": product_code,
-            "product_url": product_url,
-            "category": "",
-            "breadcrumb": "",
-            "description": "",
-            "ean_upc": "",
-            "brand": brand,
-            "price": price,
-            "condition": "New",
-            "stock": None,
-            "availability": availability,
-            "variants": "[]",
-            "input_url": cat_url,
-            "is_cto": is_cto,
-        })
+        products.append(
+            {
+                "product_name": name,
+                "product_code": product_code,
+                "product_url": product_url,
+                "category": "",
+                "breadcrumb": "",
+                "description": "",
+                "ean_upc": "",
+                "brand": brand,
+                "price": price,
+                "condition": "New",
+                "stock": None,
+                "availability": availability,
+                "variants": "[]",
+                "input_url": cat_url,
+                "is_cto": is_cto,
+            }
+        )
     return products
 
 
@@ -199,7 +207,8 @@ def _parse_price(text: str) -> float | None:
 
 # ── PDP parsing for CTO products ──────────────────────────────────────────────
 
-async def _scrape_cto_pdp(page, product_url: str) -> dict:
+
+async def _scrape_cto_pdp(page: object, product_url: str) -> dict:
     """Scrape CTO product: click each variant swatch, capture price per variant."""
     ok = await _goto(page, product_url)
     if not ok:
@@ -210,7 +219,11 @@ async def _scrape_cto_pdp(page, product_url: str) -> dict:
 
     # Static fields from PDP
     ean_el = tree.css_first("span.product-code-content, meta[itemprop='gtin']")
-    ean_upc = ean_el.text(strip=True) if ean_el else (ean_el.attributes.get("content", "") if ean_el else "")
+    ean_upc = (
+        ean_el.text(strip=True)
+        if ean_el
+        else (ean_el.attributes.get("content", "") if ean_el else "")
+    )
     desc_el = tree.css_first("div.product-description p, div.cms-block-text p")
     description = desc_el.text(strip=True)[:500] if desc_el else ""
 
@@ -227,11 +240,12 @@ async def _scrape_cto_pdp(page, product_url: str) -> dict:
                 await swatch.click()
                 # Wait for price to update
                 try:
-                    await page.wait_for_function(
-                        f"document.querySelector('.price.h1')?.innerText !== {json.dumps(prev_price)}",
-                        timeout=8_000,
+                    js_expr = (
+                        f"document.querySelector('.price.h1')?.innerText"
+                        f" !== {json.dumps(prev_price)}"
                     )
-                except Exception:
+                    await page.wait_for_function(js_expr, timeout=8_000)
+                except Exception:  # noqa: S110
                     pass  # Price may not change for this variant
 
                 price_el = await page.query_selector(".price.h1")
@@ -239,13 +253,15 @@ async def _scrape_cto_pdp(page, product_url: str) -> dict:
                 price = _parse_price(price_text)
 
                 label_text = await swatch.inner_text()
-                variants.append({
-                    "variant_name": label_text.strip(),
-                    "price": price,
-                    "availability": "",
-                    "stock": None,
-                })
-            except Exception:
+                variants.append(
+                    {
+                        "variant_name": label_text.strip(),
+                        "price": price,
+                        "availability": "",
+                        "stock": None,
+                    }
+                )
+            except Exception:  # noqa: S112
                 continue
     else:
         # Non-CTO: single price from page
@@ -263,6 +279,7 @@ async def _scrape_cto_pdp(page, product_url: str) -> dict:
 
 
 # ── Main category scrape ──────────────────────────────────────────────────────
+
 
 async def _scrape_category(cat_url: str, cat_id: str, run_id: str) -> list[dict]:
     """Scrape all products from a single Tonitrus leaf category.
@@ -328,8 +345,9 @@ async def _scrape_category(cat_url: str, cat_id: str, run_id: str) -> list[dict]
 
 # ── FastAPI handler ───────────────────────────────────────────────────────────
 
+
 @app.post("/")
-async def handle(request: Request):
+async def handle(request: Request) -> JSONResponse:
     """Handle a Cloud Tasks invocation to scrape one Tonitrus leaf category.
 
     Reads ``run_id``, ``cat_url``, and ``cat_id`` from the JSON body, runs
@@ -372,7 +390,8 @@ async def handle(request: Request):
                 task_id=f"{run_id}-merge",
             )
             notifications.slack_notify(
-                f":bar_chart: *tonitrus* all {expected} categories done – merge triggered\nrun_id: `{run_id}`"
+                f":bar_chart: *tonitrus* all {expected} categories done - merge triggered"
+                f"\nrun_id: `{run_id}`"
             )
 
         return JSONResponse({"ok": True, "cat_id": cat_id, "products": len(products)})
@@ -380,7 +399,8 @@ async def handle(request: Request):
     except Exception as exc:
         err_msg = traceback.format_exc()
         notifications.slack_notify(
-            f":warning: *tonitrus* worker error\nrun_id: `{run_id}`\ncat: {cat_url}\n```{err_msg[:400]}```"
+            f":warning: *tonitrus* worker error\nrun_id: `{run_id}`\n"
+            f"cat: {cat_url}\n```{err_msg[:400]}```"
         )
         return JSONResponse(
             {"ok": False, "error": str(exc)},
@@ -408,7 +428,7 @@ async def _atomic_increment_and_check(run_id: str) -> tuple[int, int]:
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict:
     """Return a liveness check payload.
 
     Returns:

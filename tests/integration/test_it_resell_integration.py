@@ -1,13 +1,13 @@
-"""Integration tests for IT Resell scraper – mocked HTTP, real logic."""
+"""Integration tests for IT Resell scraper - mocked HTTP, real logic."""
+
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from collectors.it_resell.scraper import _fetch, _scrape_pages
-from tests.conftest import IT_RESELL_PLP_HTML, IT_RESELL_PAGINATION_HTML
+from tests.conftest import IT_RESELL_PLP_HTML
 
 pytestmark = pytest.mark.integration
 

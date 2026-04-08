@@ -1,4 +1,5 @@
 """Unit tests for collectors/it_resell/scraper.py."""
+
 from __future__ import annotations
 
 import pytest
@@ -10,8 +11,8 @@ from collectors.it_resell.scraper import (
     _parse_plp,
 )
 
-
 # ── _collection_url ───────────────────────────────────────────────────────────
+
 
 class TestCollectionUrl:
     def test_page_1(self):
@@ -26,21 +27,26 @@ class TestCollectionUrl:
 
 # ── _parse_money ──────────────────────────────────────────────────────────────
 
+
 class TestParseMoney:
-    @pytest.mark.parametrize("text,expected", [
-        ("€ 450.00", 450.0),
-        ("1,200.50", 1200.5),
-        ("€1200", 1200.0),
-        ("0.00", 0.0),
-        ("", None),
-        ("N/A", None),
-        ("Price on request", None),
-    ])
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("€ 450.00", 450.0),
+            ("1,200.50", 1200.5),
+            ("€1200", 1200.0),
+            ("0.00", 0.0),
+            ("", None),
+            ("N/A", None),
+            ("Price on request", None),
+        ],
+    )
     def test_parse_various_formats(self, text, expected):
         assert _parse_money(text) == expected
 
 
 # ── _get_last_page ────────────────────────────────────────────────────────────
+
 
 class TestGetLastPage:
     def test_extracts_last_page(self, it_resell_pagination_html):
@@ -63,6 +69,7 @@ class TestGetLastPage:
 
 
 # ── _parse_plp ────────────────────────────────────────────────────────────────
+
 
 class TestParsePlp:
     def test_extracts_two_products(self, it_resell_plp_html):
