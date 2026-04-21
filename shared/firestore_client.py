@@ -137,36 +137,23 @@ async def tonitrus_set_expected(run_id: str, expected_count: int) -> None:
     )
 
 
-async def tonitrus_increment_completed(run_id: str) -> int:
-    """Atomically increment the completed worker count for a Tonitrus run.
+async def tonitrus_increment_completed(run_id: str) -> tuple[int, int]:
+    """Atomically increment the completed worker count and return (completed, expected).
 
-    Uses a Firestore transaction to prevent lost updates when multiple
-    category workers report completion concurrently.
-
-    Args:
-        run_id: The Firestore document ID of the Tonitrus job.
-
-    Returns:
-        The new value of ``tonitrus_completed_count`` after incrementing.
+    Reads and writes in a single transaction so the caller never sees a stale
+    expected count between two separate calls.
     """
     db = _get_db()
     ref = db.collection("jobs").document(run_id)
 
     @firestore.async_transactional
-    async def _txn(transaction: firestore.AsyncTransaction) -> int:
-        """Transactional inner function that reads, increments, and writes.
-
-        Args:
-            transaction: The active Firestore async transaction context.
-
-        Returns:
-            The incremented completed count value.
-        """
+    async def _txn(transaction: firestore.AsyncTransaction) -> tuple[int, int]:
         doc = await ref.get(transaction=transaction)
         data = doc.to_dict() or {}
         new_count = data.get("tonitrus_completed_count", 0) + 1
+        expected = data.get("tonitrus_expected_count", 0)
         transaction.update(ref, {"tonitrus_completed_count": new_count})
-        return new_count
+        return new_count, expected
 
     return await _txn(db.transaction())
 
@@ -187,33 +174,111 @@ async def tonitrus_get_counts(run_id: str) -> tuple[int, int]:
     return doc.get("tonitrus_completed_count", 0), doc.get("tonitrus_expected_count", 0)
 
 
+# ── Tonitrus PDP counters ─────────────────────────────────────────────────────
+
+
+async def tonitrus_init_pdp_counter(run_id: str, cat_id: str, expected: int) -> None:
+    """Initialise per-category PDP completion counter (idempotent on PLP retry).
+
+    On first write: sets expected + completed=0 + plp_done=False.
+    On PLP retry (doc already exists): updates expected only, preserving any
+    in-progress completed count so running PDP tasks are not lost.
+    """
+    db = _get_db()
+    ref = (
+        db.collection("jobs").document(run_id)
+        .collection("pdp_counters").document(cat_id)
+    )
+
+    @firestore.async_transactional
+    async def _txn(transaction: firestore.AsyncTransaction) -> None:
+        doc = await ref.get(transaction=transaction)
+        if doc.exists:
+            transaction.update(ref, {"expected": expected})
+        else:
+            transaction.set(ref, {"expected": expected, "completed": 0, "plp_done": False})
+
+    await _txn(db.transaction())
+
+
+async def tonitrus_get_pdp_counter(run_id: str, cat_id: str) -> dict | None:
+    """Read the PDP counter document for a category. Returns None if not found."""
+    db = _get_db()
+    doc = await (
+        db.collection("jobs").document(run_id)
+        .collection("pdp_counters").document(cat_id)
+        .get()
+    )
+    return doc.to_dict() if doc.exists else None
+
+
+async def tonitrus_mark_plp_done(run_id: str, cat_id: str) -> None:
+    """Mark PLP scrape as complete for this category (idempotency gate)."""
+    db = _get_db()
+    await (
+        db.collection("jobs").document(run_id)
+        .collection("pdp_counters").document(cat_id)
+        .update({"plp_done": True})
+    )
+
+
+async def tonitrus_increment_pdp_completed(run_id: str, cat_id: str) -> tuple[int, int]:
+    """Atomically increment PDP completed count. Returns (completed, expected)."""
+    db = _get_db()
+    ref = (
+        db.collection("jobs").document(run_id)
+        .collection("pdp_counters").document(cat_id)
+    )
+
+    @firestore.async_transactional
+    async def _txn(transaction: firestore.AsyncTransaction) -> tuple[int, int]:
+        doc = await ref.get(transaction=transaction)
+        data = doc.to_dict() or {}
+        new_completed = data.get("completed", 0) + 1
+        expected = data.get("expected", 0)
+        transaction.update(ref, {"completed": new_completed})
+        return new_completed, expected
+
+    return await _txn(db.transaction())
+
+
+async def tonitrus_update_product(run_id: str, cat_id: str, product_code: str, fields: dict) -> None:
+    """Update fields on a single product document in-place."""
+    db = _get_db()
+    key = (product_code or "unknown")[:500]
+    await (
+        db.collection("tonitrus_products").document(run_id)
+        .collection(cat_id).document(key)
+        .update({**fields, "updated_at": firestore.SERVER_TIMESTAMP})
+    )
+
+
 # ── Tonitrus product storage ───────────────────────────────────────────────────
 
 
 async def tonitrus_write_products(run_id: str, category_id: str, products: list[dict]) -> None:
     """Batch-write scraped product records to Firestore for a Tonitrus run.
 
-    Products are stored under ``tonitrus_products/{run_id}/{category_id}/``
-    with a TTL of :data:`TONITRUS_PRODUCT_TTL_DAYS` days. The document ID for
-    each product is derived from ``product_code``, the last path segment of
-    ``url``, or the first 40 characters of ``name``, in that priority order.
+    Splits products into chunks of 500 to respect Firestore's per-commit limit.
+    Uses batch.set() so retries are idempotent (overwrites with same data).
 
     Args:
         run_id: The Firestore document ID of the parent Tonitrus job.
         category_id: Identifier for the product category sub-collection.
-        products: List of product dicts to write. Each dict should contain at
-            least one of ``product_code``, ``url``, or ``name`` to form a
-            stable document ID.
+        products: List of product dicts to write.
     """
     db = _get_db()
     expires_at = _ttl(TONITRUS_PRODUCT_TTL_DAYS)
-    batch = db.batch()
     col = db.collection("tonitrus_products").document(run_id).collection(category_id)
-    for p in products:
-        key = p.get("product_code") or p.get("url", "").split("/")[-1] or p.get("name", "")[:40]
-        ref = col.document(key[:500])  # Firestore doc ID limit
-        batch.set(ref, {**p, "expires_at": expires_at})
-    await batch.commit()
+    chunk_size = 499  # Firestore limit is 500 ops per commit; stay under
+    for offset in range(0, len(products), chunk_size):
+        chunk = products[offset : offset + chunk_size]
+        batch = db.batch()
+        for p in chunk:
+            key = p.get("product_code") or p.get("url", "").split("/")[-1] or p.get("name", "")[:40]
+            ref = col.document(key[:500])
+            batch.set(ref, {**p, "expires_at": expires_at})
+        await batch.commit()
 
 
 async def tonitrus_read_all_products(run_id: str) -> list[dict]:
