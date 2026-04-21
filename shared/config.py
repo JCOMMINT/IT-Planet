@@ -61,3 +61,19 @@ COLLECTOR_WORKER_URLS = {
     "it_market": IT_MARKET_WORKER_URL,
     "tonitrus": TONITRUS_DISCOVERY_URL,
 }
+
+# ── Tonitrus output schema ─────────────────────────────────────────────────────
+TONITRUS_CSV_FIELDS = [
+    "product_url",
+    "product_name",
+    "brand",
+    "model",
+    "mpn",
+    "sku",
+    "breadcrumb",
+    "prices",
+    "input_url",
+    "nav_page_url",
+    "status",
+    "error_message",
+]

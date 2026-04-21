@@ -3,6 +3,7 @@
 import csv
 import datetime
 import io
+import json
 from typing import Any
 
 from google.cloud import storage
@@ -67,9 +68,14 @@ def upload_csv(
     """
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n")
+    def _csv_val(v: Any) -> Any:
+        if isinstance(v, (dict, list)):
+            return json.dumps(v, ensure_ascii=False)
+        return v if v is not None else ""
+
     writer.writeheader()
     for row in rows:
-        writer.writerow({k: (row.get(k, "") if row.get(k) is not None else "") for k in fieldnames})
+        writer.writerow({k: _csv_val(row.get(k)) for k in fieldnames})
 
     client = _get_client()
     bucket = client.bucket(config.GCS_BUCKET)

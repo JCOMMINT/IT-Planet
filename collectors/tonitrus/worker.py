@@ -86,20 +86,13 @@ def _parse_plp_cards(html: str, cat_url: str) -> list[dict]:
             continue
         href = a_el.attributes.get("href", "")
         product_url = href if href.startswith("http") else "https://www.tonitrus.com" + href
-        name = a_el.text(strip=True)
         m = re.search(r"/([^/?#]+)$", product_url)
         slug = m.group(1) if m else ""
         product_code = re.sub(r"_\d+$", "", slug) if slug else ""
-        is_cto = (
-            bool(card.css_first("span.is-cto, div.cto-badge, [data-cto='true']"))
-            or "CTO" in product_url.upper()
-            or "CTO" in name.upper()
-        )
         products.append({
             "product_code": product_code,
             "product_url":  product_url,
             "input_url":    cat_url,
-            "is_cto":       is_cto,
         })
     return products
 
@@ -126,15 +119,9 @@ def _parse_pdp_html(html: str, product_url: str) -> dict:
 
     parts = [p.strip() for p in product_name.split(" - ")]
     brand = parts[0] if len(parts) > 0 else ""
-    mpn   = parts[1] if len(parts) > 1 else ""
-    last_pair = 0
-    for i in range(len(parts) - 1):
-        if parts[i] == brand and parts[i + 1] == mpn:
-            last_pair = i
-    model = " - ".join(parts[last_pair + 2:]) if len(parts) > last_pair + 2 else ""
 
-    sku_el = tree.css_first("span[itemprop='sku']")
-    sku    = sku_el.text(strip=True).split(":")[-1].strip() if sku_el else ""
+    sku_el = tree.css_first("li.product-sku span[itemprop='sku']")
+    sku    = sku_el.text(strip=True) if sku_el else ""
 
     crumbs: list[tuple[int, str]] = []
     for li in tree.css("li.breadcrumb-item[itemprop='itemListElement']"):
@@ -145,6 +132,7 @@ def _parse_pdp_html(html: str, product_url: str) -> dict:
         pos = int(pos_el.attributes.get("content", "99")) if pos_el else 99
         crumbs.append((pos, name_el.text(strip=True)))
     crumbs.sort(key=lambda x: x[0])
+    model       = crumbs[-1][1] if crumbs else ""
     subcategory = " > ".join(c[1] for c in crumbs[1:-1])
 
     prices: dict[str, dict] = {}
@@ -202,14 +190,10 @@ def _parse_pdp_html(html: str, product_url: str) -> dict:
         "product_name":  product_name,
         "brand":         brand,
         "model":         model,
-        "mpn":           mpn,
+        "mpn":           "",
         "sku":           sku,
         "breadcrumb":    subcategory,
         "prices":        prices,
-        "price":         _parse_price(primary.get("price_gross") or ""),
-        "condition":     primary_cond or "",
-        "stock":         primary.get("stock", None),
-        "availability":  primary.get("status", ""),
         "status":        "ok",
         "error_message": "",
     }
@@ -281,6 +265,7 @@ async def _scrape_category_plp(cat_url: str) -> tuple[list[dict], str, str]:
         n_pages = ceil(total / ITEMS_PER_PAGE) if total > 0 else 1
         logger.info("_scrape_category  cat=%s  total=%d  pages=%d", cat_url, total, n_pages)
 
+        total_raw = 0
         for pg in range(1, n_pages + 1):
             if pg > 1:
                 logger.info("_scrape_category  cat=%s  fetching page %d/%d", cat_url, pg, n_pages)
@@ -290,14 +275,18 @@ async def _scrape_category_plp(cat_url: str) -> tuple[list[dict], str, str]:
                     break
                 html = await page.content()
             cards = _parse_plp_cards(html, cat_url)
+            total_raw += len(cards)
+            added = 0
+            nav_page_url = f"{cat_url.split('?')[0]}_s{pg}"
             for card in cards:
                 key = card["product_code"] or card["product_url"]
                 if key not in seen:
                     seen.add(key)
-                    all_products.append(card)
+                    all_products.append({**card, "nav_page_url": nav_page_url})
+                    added += 1
             logger.info(
-                "_scrape_category  page=%d  cards=%d  running_total=%d",
-                pg, len(cards), len(all_products),
+                "_scrape_category  page=%d  cards=%d  added=%d  deduped=%d  running_total=%d",
+                pg, len(cards), added, len(cards) - added, len(all_products),
             )
 
         # Capture session cookies + UA for curl_cffi PDP requests
@@ -306,7 +295,10 @@ async def _scrape_category_plp(cat_url: str) -> tuple[list[dict], str, str]:
         ua         = await page.evaluate("navigator.userAgent")
         await page.close()
 
-    logger.info("_scrape_category  PLP done  products=%d  cat=%s", len(all_products), cat_url)
+    logger.info(
+        "_scrape_category  PLP done  raw=%d  unique=%d  deduped=%d  cat=%s",
+        total_raw, len(all_products), total_raw - len(all_products), cat_url,
+    )
     return all_products, cookie_str, ua
 
 
@@ -462,9 +454,7 @@ async def handle_pdp(request: Request) -> JSONResponse:
     try:
         pdp = await _scrape_pdp_http(product_url, cookie_str, ua)
 
-        if "prices" in pdp:
-            pdp["variants"] = json.dumps(pdp.pop("prices"), ensure_ascii=False)
-        pdp.setdefault("variants", "{}")
+        pdp.setdefault("prices", {})
 
         await firestore_client.tonitrus_update_product(run_id, cat_id, product_code, pdp)
         logger.info(
