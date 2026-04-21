@@ -223,23 +223,21 @@ async def tonitrus_mark_plp_done(run_id: str, cat_id: str) -> None:
 
 
 async def tonitrus_increment_pdp_completed(run_id: str, cat_id: str) -> tuple[int, int]:
-    """Atomically increment PDP completed count. Returns (completed, expected)."""
+    """Increment PDP completed count using server-side FieldValue.increment.
+
+    Avoids transaction contention under high concurrency (50+ concurrent PDP
+    tasks hitting the same counter document simultaneously would exhaust
+    @async_transactional retries and silently drop increments).
+    """
     db = _get_db()
     ref = (
         db.collection("jobs").document(run_id)
         .collection("pdp_counters").document(cat_id)
     )
-
-    @firestore.async_transactional
-    async def _txn(transaction: firestore.AsyncTransaction) -> tuple[int, int]:
-        doc = await ref.get(transaction=transaction)
-        data = doc.to_dict() or {}
-        new_completed = data.get("completed", 0) + 1
-        expected = data.get("expected", 0)
-        transaction.update(ref, {"completed": new_completed})
-        return new_completed, expected
-
-    return await _txn(db.transaction())
+    await ref.update({"completed": firestore.Increment(1)})
+    doc = await ref.get()
+    data = doc.to_dict() or {}
+    return data.get("completed", 0), data.get("expected", 0)
 
 
 async def tonitrus_update_product(run_id: str, cat_id: str, product_code: str, fields: dict) -> None:
