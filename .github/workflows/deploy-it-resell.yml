@@ -1,0 +1,41 @@
+name: Deploy IT Resell
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "collectors/it_resell/**"
+      - "shared/**"
+
+env:
+  REGION: europe-west1
+  SERVICE: it-planet-it-resell
+  IMAGE: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-planet/it-resell
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - run: gcloud auth configure-docker europe-west1-docker.pkg.dev
+
+      - run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+      - run: docker push $IMAGE:${{ github.sha }} && docker push $IMAGE:latest
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:${{ github.sha }}

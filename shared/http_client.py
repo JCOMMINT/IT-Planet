@@ -87,7 +87,8 @@ def camoufox_proxy(sticky: bool = True) -> dict:
 
     Returns:
         A dict with keys ``"server"``, ``"username"``, ``"password"``, and
-        ``"bypass"`` as required by the Camoufox proxy configuration schema.
+        ``"server"``, ``"username"``, and ``"password"`` as required by the
+        Camoufox proxy configuration schema.
     """
     user = config.PROXY_USER
     if sticky:
@@ -96,7 +97,6 @@ def camoufox_proxy(sticky: bool = True) -> dict:
         "server": f"http://{config.PROXY_HOST}:{config.PROXY_PORT_RESIDENTIAL}",
         "username": user,
         "password": config.PROXY_PASS,
-        "bypass": [],
     }
 
 

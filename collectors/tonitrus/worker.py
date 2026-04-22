@@ -88,9 +88,8 @@ def _parse_plp_cards(html: str, cat_url: str) -> list[dict]:
         product_url = href if href.startswith("http") else "https://www.tonitrus.com" + href
         m = re.search(r"/([^/?#]+)$", product_url)
         slug = m.group(1) if m else ""
-        product_code = re.sub(r"_\d+$", "", slug) if slug else ""
         products.append({
-            "product_code": product_code,
+            "product_code": slug,
             "product_url":  product_url,
             "input_url":    cat_url,
         })
@@ -279,7 +278,7 @@ async def _scrape_category_plp(cat_url: str) -> tuple[list[dict], str, str]:
             added = 0
             nav_page_url = f"{cat_url.split('?')[0]}_s{pg}"
             for card in cards:
-                key = card["product_code"] or card["product_url"]
+                key = card["product_url"]
                 if key not in seen:
                     seen.add(key)
                     all_products.append({**card, "nav_page_url": nav_page_url})

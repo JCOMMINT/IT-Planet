@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY shared ./shared
-COPY collectors/tonitrus/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     python -m camoufox fetch
 
@@ -22,6 +22,6 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 ENV ENTRY_POINT=worker
 ENV PORT=8080
 
-COPY collectors/tonitrus/discovery.py collectors/tonitrus/worker.py collectors/tonitrus/merge.py ./
+COPY discovery.py worker.py merge.py ./
 
 CMD ["sh", "-c", "uvicorn ${ENTRY_POINT}:app --host 0.0.0.0 --port 8080"]

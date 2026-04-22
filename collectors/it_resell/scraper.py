@@ -1,314 +1,377 @@
-"""IT-Resell.com scraper – curl_cffi, handle-based dedup.
+"""IT-Resell.com scraper — Shopware 6, curl_cffi + selectolax.
 
-This module implements an async scraper for the IT-Resell.com Shopify storefront.
-It pages through the full product collection, parses each product card on
-category listing pages, deduplicates results by variant ID or product handle,
-and returns structured rows ready for CSV export.
+Scrapes a single subcategory URL (input_url). Fetches all PLP pages in
+parallel, then fetches each PDP. Phase 2b derives the alternate condition URL
+(.1 ↔ .2 suffix) and augments the primary row's prices dict and sku field.
+POR products (no price meta) skip Phase 2b entirely.
 """
 from __future__ import annotations
 
 import asyncio
-import random
+import json
+import logging
+import os
 import re
+from urllib.parse import urlparse
 
 from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
 
-BASE_URL = "https://www.it-resell.com"
-COLLECTION_PATH = "/en/collections/all"
-MAX_RETRIES = 3
-WORKER_COUNT = 4
+logger = logging.getLogger(__name__)
+
+BASE_URL        = "https://www.it-resell.com"
+MAX_RETRIES     = 3
+PLP_CONCURRENCY = 20
+PDP_CONCURRENCY = int(os.getenv("SCRAPER_CONCURRENCY", "5"))
+
+CONDITION_MAP = {
+    "neu":         "NEW",
+    "new":         "NEW",         # Google Translate fallback
+    "refurbished": "REFURBISHED",
+}
 
 CSV_FIELDS = [
-    "handle", "name", "product_url", "variant_id", "sku",
-    "price_min", "price_max", "availability",
-    "description", "ean", "brand", "mpn", "manufacturer",
-    "price_zero_flag", "source_url",
-    "status", "error_message",
+    "product_url", "product_name", "brand", "model", "mpn",
+    "sku", "ean", "breadcrumb", "prices",
+    "input_url", "nav_page_url", "status", "error_message",
 ]
 
 
-def _collection_url(page: int) -> str:
-    """Build the URL for a specific page of the IT-Resell full product collection.
+# ── URL helpers ───────────────────────────────────────────────────────────────
 
-    Results are sorted by ascending price so that pagination is stable across
-    multiple requests.
-
-    Args:
-        page: 1-based page number to request.
-
-    Returns:
-        Absolute URL string for the requested collection page.
-    """
-    return f"{BASE_URL}{COLLECTION_PATH}?sort_by=price-ascending&page={page}"
+def _plp_url(base: str, page: int) -> str:
+    return f"{base.rstrip('/')}/?p={page}"
 
 
-# ── Fetch with retry ──────────────────────────────────────────────────────────
-
-async def _fetch(session: AsyncSession, url: str, attempt: int = 0) -> str | None:
-    """Fetch a URL with randomised exponential-backoff retry on errors.
-
-    Retries on HTTP 429, 403, 503 responses and on any exception, up to
-    ``MAX_RETRIES`` times. Delay between retries grows with attempt index and
-    includes a small random jitter.
-
-    Args:
-        session: An active curl_cffi AsyncSession to issue the request with.
-        url: The URL to retrieve.
-        attempt: Current retry attempt index, starting at 0.
-
-    Returns:
-        Response body as a string, or None if all retries are exhausted or
-        a non-retryable HTTP status code is returned.
-    """
-    try:
-        r = await session.get(url, timeout=30)
-        if r.status_code == 200:
-            return r.text
-        if r.status_code in (429, 403, 503) and attempt < MAX_RETRIES:
-            delay = (attempt) * 4 + random.uniform(0.5, 2.0)
-            await asyncio.sleep(delay)
-            return await _fetch(session, url, attempt + 1)
-        return None
-    except Exception:
-        if attempt < MAX_RETRIES:
-            delay = (attempt) * 4 + random.uniform(0.5, 2.0)
-            await asyncio.sleep(delay)
-            return await _fetch(session, url, attempt + 1)
-        return None
+def _build_breadcrumb_prefix(input_url: str) -> str:
+    path = urlparse(input_url).path
+    skip = {"collection", ""}
+    parts = [
+        p.replace("-", " ").title()
+        for p in path.split("/")
+        if p.lower() not in skip
+    ]
+    return " > ".join(parts)
 
 
-# ── Pagination ────────────────────────────────────────────────────────────────
+# ── PLP parsers ───────────────────────────────────────────────────────────────
 
-def _get_last_page(html: str) -> int:
-    """Determine the total number of pages from pagination links in a collection page.
-
-    Scans ``<a href>`` elements inside ``li.pagination_el`` and extracts the
-    highest ``page=N`` query parameter found.
-
-    Args:
-        html: Raw HTML string of any collection listing page.
-
-    Returns:
-        Highest page number found in the pagination links, or 1 if none are
-        present (i.e. the collection fits on a single page).
-    """
+def _parse_last_page(html: str) -> int:
     tree = HTMLParser(html)
     last = 1
-    for a in tree.css("li.pagination_el a[href]"):
+    for a in tree.css("a[href]"):
         href = a.attributes.get("href", "")
-        m = re.search(r"page=(\d+)", href)
+        m = re.search(r"[?&]p=(\d+)", href)
         if m:
             last = max(last, int(m.group(1)))
     return last
 
 
-# ── PLP parsing ───────────────────────────────────────────────────────────────
-
-def _parse_money(text: str) -> float | None:
-    """Parse a price string into a float value.
-
-    Strips thousands-separator commas before matching a numeric pattern, so
-    both ``"1,299.99"`` and ``"1299.99"`` are handled correctly.
-
-    Args:
-        text: Raw price text, e.g. ``"€1,299.99"`` or ``"1299.99 EUR"``.
-
-    Returns:
-        Price as a float, or None if no numeric value can be extracted.
-    """
-    m = re.search(r"[\d,]+\.?\d*", text.replace(",", ""))
-    return float(m.group()) if m else None
-
-
-def _parse_plp(html: str) -> list[dict]:
-    """Parse product cards from a collection listing page into structured dicts.
-
-    Iterates over ``div.product_item`` cards and extracts name, URL, handle,
-    price range, variant ID, SKU, and availability from each card's markup.
-    Cards that contain neither a handle nor a name are skipped.
-
-    Args:
-        html: Raw HTML string of an IT-Resell collection listing page.
-
-    Returns:
-        List of product dictionaries, one per valid card, containing the
-        fields defined in ``CSV_FIELDS`` (description, EAN, brand, MPN, and
-        manufacturer are left empty for later enrichment).
-    """
+def _parse_plp_cards(html: str, nav_url: str) -> list[dict]:
     tree = HTMLParser(html)
-    products = []
-    for card in tree.css("div.product_item"):
-        name_el = card.css_first("a.product-name")
-        name = name_el.text(strip=True) if name_el else ""
-
-        link_el = card.css_first("a[href*='/products/']") or card.css_first("a.product-name")
-        product_url = ""
-        handle = ""
-        if link_el:
-            href = link_el.attributes.get("href", "")
-            product_url = href if href.startswith("http") else BASE_URL + href
-            m = re.search(r"/products/([^/?#]+)", href)
-            handle = m.group(1) if m else ""
-
-        # Price range
-        prices = []
-        for span in card.css("span.money"):
-            p = _parse_money(span.text(strip=True))
-            if p is not None:
-                prices.append(p)
-        price_min = min(prices) if prices else None
-        price_max = max(prices) if prices else None
-        price_zero_flag = price_min == 0 if price_min is not None else False
-
-        # Variant ID from hidden input
-        variant_id = ""
-        inp = card.css_first("input[name='id']")
-        if inp:
-            variant_id = inp.attributes.get("value", "")
-
-        # SKU
-        sku_el = card.css_first("div.single_product__sku")
-        sku = sku_el.text(strip=True) if sku_el else ""
-
-        # Availability via class name heuristic
-        avail_el = card.css_first("span.availability, div.availability")
-        availability = avail_el.text(strip=True) if avail_el else ""
-
-        if not handle and not name:
+    seen: set[str] = set()
+    cards: list[dict] = []
+    for a in tree.css("a[href]"):
+        href = a.attributes.get("href", "")
+        if "/product/" not in href:
             continue
-
-        products.append({
-            "handle": handle,
-            "name": name,
-            "product_url": product_url,
-            "variant_id": variant_id,
-            "sku": sku,
-            "price_min": price_min,
-            "price_max": price_max,
-            "availability": availability,
-            "description": "",
-            "ean": "",
-            "brand": "",
-            "mpn": "",
-            "manufacturer": "",
-            "price_zero_flag": price_zero_flag,
-            "source_url": _collection_url(1),
-            "status": "ok",
-            "error_message": "",
-        })
-    return products
+        url = href if href.startswith("http") else BASE_URL + href
+        url = url.split("?")[0].split("#")[0]
+        if url not in seen:
+            seen.add(url)
+            cards.append({"product_url": url, "nav_page_url": nav_url})
+    return cards
 
 
-# ── Worker coroutine ──────────────────────────────────────────────────────────
+# ── PDP parser ────────────────────────────────────────────────────────────────
 
-async def _scrape_pages(session: AsyncSession, pages: range) -> list[dict]:
-    """Sequentially fetch and parse a contiguous range of collection pages.
+def _parse_price(text: str) -> float | None:
+    cleaned = text.strip().replace(".", "").replace(",", ".")
+    cleaned = re.sub(r"[^\d.]", "", cleaned)
+    try:
+        return float(cleaned) if cleaned else None
+    except ValueError:
+        return None
 
-    On a fetch failure the page is recorded as a single error row rather than
-    raising an exception, so partial results from other workers are still
-    usable.
 
-    Args:
-        session: An active curl_cffi AsyncSession to use for all requests.
-        pages: Range of 1-based page numbers to fetch in order.
+def _derive_alt_url(current_url: str) -> str | None:
+    m = re.match(r'^(https://www\.it-resell\.com/product/.+)\.([12])$', current_url)
+    if m:
+        alt_suffix = "1" if m.group(2) == "2" else "2"
+        return f"{m.group(1)}.{alt_suffix}"
+    return None
 
-    Returns:
-        List of product dictionaries parsed from the requested pages.
-        Failed pages contribute one error row each with ``status`` set to
-        ``"failed"``.
-    """
-    products = []
-    for page in pages:
-        html = await _fetch(session, _collection_url(page))
-        if not html:
-            products.append({
-                "handle": "", "name": "", "product_url": "", "variant_id": "",
-                "sku": "", "price_min": None, "price_max": None, "availability": "",
-                "description": "", "ean": "", "brand": "", "mpn": "", "manufacturer": "",
-                "price_zero_flag": False,
-                "source_url": _collection_url(page),
-                "status": "failed", "error_message": f"fetch_failed_page_{page}",
-            })
-            continue
-        products.extend(_parse_plp(html))
-    return products
+
+def _parse_pdp(html: str, product_url: str, nav_page_url: str, input_url: str) -> dict:
+    tree = HTMLParser(html)
+
+    h1 = tree.css_first("h1.product-detail-name")
+    product_name = h1.text(strip=True) if h1 else ""
+
+    brand_inp = tree.css_first("input[name='brand-name']")
+    brand = brand_inp.attributes.get("value", "").strip() if brand_inp else ""
+    if not brand:
+        mfr_link = tree.css_first("span.product-detail-manufacturer-name a")
+        brand = mfr_link.text(strip=True) if mfr_link else ""
+
+    model_el = tree.css_first("span.product-detail-manufacturer-number")
+    model = model_el.text(strip=True) if model_el else ""
+
+    mpn_meta = tree.css_first("meta[itemprop='mpn']")
+    mpn = mpn_meta.attributes.get("content", "").strip() if mpn_meta else model
+
+    sku_el = tree.css_first("span.product-detail-ordernumber[itemprop='sku']")
+    sku = sku_el.text(strip=True) if sku_el else ""
+
+    ean_meta = tree.css_first("meta[itemprop='gtin13']")
+    ean = ean_meta.attributes.get("content", "").strip() if ean_meta else ""
+    # Normalize: strip float representation (.0) if HTML returns it
+    if ean and "." in ean:
+        try:
+            ean = str(int(float(ean)))
+        except ValueError:
+            pass
+
+    condition = ""
+    checked_radio = tree.css_first(
+        "input.product-detail-configurator-option-input[checked]"
+    )
+    if checked_radio:
+        radio_id = checked_radio.attributes.get("id", "")
+        label = tree.css_first(f"label[for='{radio_id}']")
+        if label:
+            raw = label.attributes.get("title", label.text(strip=True)).lower().strip()
+            condition = CONDITION_MAP.get(raw, raw.upper())
+
+    price_meta = tree.css_first("meta[itemprop='price']")
+    price_raw  = price_meta.attributes.get("content", "") if price_meta else ""
+    price_val: float | None = None
+    if price_raw:
+        try:
+            price_val = float(price_raw)
+        except ValueError:
+            price_val = _parse_price(price_raw)
+
+    prices: dict[str, float] = {}
+    if condition and price_val and price_val > 0:
+        prices[condition] = price_val
+
+    alt_url: str | None = None
+    if prices:
+        for inp in tree.css("input.product-detail-configurator-option-input"):
+            if inp.attributes.get("checked"):
+                continue
+            cls = inp.attributes.get("class", "")
+            if "not-combinable" not in cls:
+                alt_url = _derive_alt_url(product_url)
+            break
+
+    prefix = _build_breadcrumb_prefix(input_url)
+    breadcrumb = f"{prefix} > {product_name}" if prefix else product_name
+
+    return {
+        "product_url":   product_url,
+        "product_name":  product_name,
+        "brand":         brand,
+        "model":         model,
+        "mpn":           mpn,
+        "sku":           sku,
+        "ean":           ean,
+        "breadcrumb":    breadcrumb,
+        "prices":        prices,
+        "input_url":     input_url,
+        "nav_page_url":  nav_page_url,
+        "status":        "ok",
+        "error_message": "",
+        "_alt_url":      alt_url,
+    }
+
+
+# ── Fetch + PDP scraper ───────────────────────────────────────────────────────
+
+async def _fetch(session: AsyncSession, url: str, attempt: int = 0) -> str | None:
+    import random
+    try:
+        r = await session.get(url, timeout=30)
+        if r.status_code == 200:
+            return r.text
+        if r.status_code in (429, 403, 503) and attempt < MAX_RETRIES:
+            delay = attempt * 4 + random.uniform(1.0, 3.0)
+            logger.warning("HTTP %d on %s — retry %d in %.1fs", r.status_code, url, attempt + 1, delay)
+            await asyncio.sleep(delay)
+            return await _fetch(session, url, attempt + 1)
+        logger.error("HTTP %d on %s — giving up", r.status_code, url)
+        return None
+    except Exception as exc:
+        if attempt < MAX_RETRIES:
+            delay = attempt * 4 + random.uniform(1.0, 3.0)
+            logger.warning("Exception on %s: %s — retry %d", url, exc, attempt + 1)
+            await asyncio.sleep(delay)
+            return await _fetch(session, url, attempt + 1)
+        logger.error("Exception on %s after %d attempts: %s", url, MAX_RETRIES, exc)
+        return None
+
+
+def _failed_row(product_url: str, nav_page_url: str, input_url: str, reason: str) -> dict:
+    return {
+        "product_url":   product_url,
+        "product_name":  "", "brand": "", "model": "",
+        "mpn": "", "sku": "", "ean": "", "breadcrumb": "",
+        "prices":        {},
+        "input_url":     input_url,
+        "nav_page_url":  nav_page_url,
+        "status":        "failed",
+        "error_message": reason,
+        "_alt_url":      None,
+    }
+
+
+async def _scrape_pdp(
+    session: AsyncSession,
+    sem: asyncio.Semaphore,
+    product_url: str,
+    nav_page_url: str,
+    input_url: str,
+) -> dict:
+    async with sem:
+        try:
+            html = await _fetch(session, product_url)
+            if not html:
+                return _failed_row(product_url, nav_page_url, input_url, "fetch_failed")
+            return _parse_pdp(html, product_url, nav_page_url, input_url)
+        except Exception as exc:
+            return _failed_row(product_url, nav_page_url, input_url,
+                               f"{type(exc).__name__}: {exc}")
+
+
+async def _fetch_plp_page(
+    session: AsyncSession,
+    sem: asyncio.Semaphore,
+    page: int,
+    input_url: str,
+) -> tuple[str | None, str]:
+    nav_url = _plp_url(input_url, page)
+    async with sem:
+        html = await _fetch(session, nav_url)
+    return html, nav_url
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 async def run(input_url: str, run_id: str) -> list[dict]:
-    """Scrape all products from the IT-Resell full collection.
+    """Scrape one subcategory URL. Returns list of 13-column row dicts.
 
-    Discovers the last collection page, divides the page range across
-    ``WORKER_COUNT`` concurrent workers each using their own residential
-    proxy session, then deduplicates the combined results by variant ID
-    (falling back to product handle).
-
-    Args:
-        input_url: Unused URL parameter kept for interface parity with other
-            collector ``run`` functions.
-        run_id: Unique identifier for this scrape run (used for logging /
-            tracing upstream).
-
-    Returns:
-        List of deduplicated product row dictionaries. Each row contains the
-        fields defined in ``CSV_FIELDS``.
-
-    Raises:
-        RuntimeError: If the first collection page cannot be fetched.
+    Phase 1  — PLP: page 1 sequential, pages 2..N parallel (plp_sem=20)
+    Phase 2a — PDP primary: all PLP-collected URLs → one row each
+    Phase 2b — PDP secondary: fetch alt condition URL, augment existing row
+               (prices dict updated, sku appended). No new rows.
     """
-    from shared.http_client import make_residential_proxy, make_curl_session
+    from shared.http_client import make_dc_proxy, make_curl_session
 
-    proxy = make_residential_proxy()
+    logger.info("run started run_id=%s input_url=%s", run_id, input_url)
+
+    proxy   = make_dc_proxy()
+    pdp_sem = asyncio.Semaphore(PDP_CONCURRENCY)
+    plp_sem = asyncio.Semaphore(PLP_CONCURRENCY)
+
     async with make_curl_session(proxy) as session:
-        # Discover last page
-        html_p1 = await _fetch(session, _collection_url(1))
+
+        # ── Phase 1: PLP ──────────────────────────────────────────────────────
+        logger.info("[PLP] page 1 url=%s", input_url)
+        html_p1 = await _fetch(session, _plp_url(input_url, 1))
         if not html_p1:
-            raise RuntimeError("Failed to fetch collection page 1")
-        last_page = _get_last_page(html_p1)
+            raise RuntimeError(f"Failed to fetch PLP page 1 for {input_url}")
 
-    # Split pages across workers
-    chunks: list[range] = []
-    chunk_size = max(1, (last_page + WORKER_COUNT - 1) // WORKER_COUNT)
-    for i in range(WORKER_COUNT):
-        start = i * chunk_size + 1
-        end = min(start + chunk_size - 1, last_page)
-        if start <= end:
-            chunks.append(range(start, end + 1))
+        last_page = _parse_last_page(html_p1)
+        logger.info("[PLP] last_page=%d", last_page)
 
-    # Scrape all chunks concurrently, each with own session
-    async def _worker(pages: range) -> list[dict]:
-        """Scrape an assigned page range using a dedicated proxy session.
+        all_cards: list[dict] = []
+        seen_urls: set[str]   = set()
 
-        Creates a fresh residential proxy and curl session for each worker so
-        that concurrent workers do not share connection state.
+        def _add_cards(html: str, nav_url: str) -> None:
+            for c in _parse_plp_cards(html, nav_url):
+                if c["product_url"] not in seen_urls:
+                    seen_urls.add(c["product_url"])
+                    all_cards.append(c)
 
-        Args:
-            pages: Range of 1-based page numbers assigned to this worker.
+        _add_cards(html_p1, _plp_url(input_url, 1))
 
-        Returns:
-            List of product dictionaries scraped from the assigned pages.
-        """
-        p = make_residential_proxy()
-        async with make_curl_session(p) as s:
-            return await _scrape_pages(s, pages)
+        if last_page > 1:
+            logger.info("[PLP] pages 2..%d parallel concurrency=%d", last_page, PLP_CONCURRENCY)
+            page_results = await asyncio.gather(
+                *[_fetch_plp_page(session, plp_sem, p, input_url)
+                  for p in range(2, last_page + 1)],
+                return_exceptions=True,
+            )
+            for res in page_results:
+                if isinstance(res, Exception):
+                    logger.warning("[PLP] exception: %s", res)
+                    continue
+                html, nav_url = res
+                if html:
+                    _add_cards(html, nav_url)
 
-    results = await asyncio.gather(*[_worker(c) for c in chunks])
-    all_rows: list[dict] = []
-    for chunk_rows in results:
-        all_rows.extend(chunk_rows)
+        logger.info("[PLP] product URLs collected: %d", len(all_cards))
 
-    # Dedup on variant_id (fallback to handle)
-    seen: set[str] = set()
-    deduped: list[dict] = []
-    for row in all_rows:
-        key = row.get("variant_id") or row.get("handle") or ""
-        if not key:
-            deduped.append(row)
-            continue
-        if key not in seen:
-            seen.add(key)
-            deduped.append(row)
+        # ── Phase 2a: PDP primary ──────────────────────────────────────────────
+        logger.info("[PDP-2a] %d requests concurrency=%d", len(all_cards), PDP_CONCURRENCY)
+        results_2a = await asyncio.gather(
+            *[_scrape_pdp(session, pdp_sem, c["product_url"], c["nav_page_url"], input_url)
+              for c in all_cards],
+            return_exceptions=True,
+        )
 
-    return deduped
+        plp_url_set: set[str] = {c["product_url"] for c in all_cards}
+        rows: list[dict]      = []
+
+        for i, r in enumerate(results_2a):
+            if isinstance(r, Exception):
+                card = all_cards[i]
+                rows.append(_failed_row(card["product_url"], card["nav_page_url"],
+                                        input_url, f"{type(r).__name__}: {r}"))
+            else:
+                rows.append(r)
+
+        # ── Phase 2b: alt condition fetch — augments existing row ──────────────
+        alt_to_idx: dict[str, int] = {}
+        sec_seen:   set[str]       = set()
+        secondary:  list[str]      = []
+
+        for idx, row in enumerate(rows):
+            alt = row.get("_alt_url")
+            if alt and alt not in plp_url_set and alt not in sec_seen:
+                sec_seen.add(alt)
+                alt_to_idx[alt] = idx
+                secondary.append(alt)
+
+        if secondary:
+            logger.info("[PDP-2b] %d alt-condition fetches", len(secondary))
+            nav_url_for = {alt: rows[alt_to_idx[alt]]["nav_page_url"] for alt in secondary}
+            results_2b = await asyncio.gather(
+                *[_scrape_pdp(session, pdp_sem, alt, nav_url_for[alt], input_url)
+                  for alt in secondary],
+                return_exceptions=True,
+            )
+            for j, r in enumerate(results_2b):
+                if isinstance(r, Exception):
+                    logger.warning("[PDP-2b] failed %s: %s", secondary[j], r)
+                    continue
+                alt_prices = r.get("prices", {})
+                alt_sku    = r.get("sku", "")
+                primary    = rows[alt_to_idx[secondary[j]]]
+                if alt_prices:
+                    primary["prices"].update(alt_prices)
+                if alt_sku and alt_sku not in primary["sku"]:
+                    primary["sku"] = f"{primary['sku']} / {alt_sku}"
+        else:
+            logger.info("[PDP-2b] skipped — PLP already listed both conditions")
+
+    # ── Finalise ──────────────────────────────────────────────────────────────
+    for row in rows:
+        row.pop("_alt_url", None)
+        row["prices"] = json.dumps(row["prices"])
+
+    ok_count = sum(1 for r in rows if r.get("status") == "ok")
+    logger.info("[DONE] run_id=%s total=%d ok=%d failed=%d",
+                run_id, len(rows), ok_count, len(rows) - ok_count)
+    return rows

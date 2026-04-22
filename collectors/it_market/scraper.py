@@ -3,23 +3,26 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import random
 import re
 
+import os
+
 from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
+
+log = logging.getLogger(__name__)
 
 BASE_URL = "https://it-market.com"
 MAX_PAGE_CAP = 415
 MAX_RETRIES = 3
 SORTS = ["name-asc", "name-desc", "price-asc", "price-desc", "topseller"]
+CONCURRENCY = int(os.getenv("SCRAPER_CONCURRENCY", "5"))  # max simultaneous HTTP requests
 
 CSV_FIELDS = [
-    "product_name", "product_code", "product_id", "product_url",
-    "breadcrumb", "category", "subcategory",
-    "model", "description", "ean_upc", "brand",
-    "variants",        # JSON string: [{variant_id, condition, price, stock, availability}]
-    "input_url", "coverage_pct",
+    "product_url", "product_name", "brand", "model", "mpn", "sku",
+    "breadcrumb", "prices", "input_url", "nav_page_url",
     "status", "error_message",
 ]
 
@@ -43,12 +46,12 @@ def _sort_url(subcat_url: str, sort: str, page: int) -> str:
 
 # ── Fetch with retry ──────────────────────────────────────────────────────────
 
-async def _fetch(session: AsyncSession, url: str, attempt: int = 0) -> str | None:
+async def _fetch(session: AsyncSession, url: str, attempt: int = 0, _sem: asyncio.Semaphore | None = None) -> str | None:
     """Fetch a URL with automatic retry on rate-limit and transient errors.
 
-    Retries up to ``MAX_RETRIES`` times with exponential-ish back-off when
-    the server responds with 429, 403, or 503, or when a network exception
-    is raised.
+    Rotates to a fresh proxy exit node on every attempt. Retries up to
+    ``MAX_RETRIES`` times. Timeout/connection errors retry fast; rate-limit
+    responses back off slowly.
 
     Args:
         session: An active ``curl_cffi`` async HTTP session.
@@ -60,20 +63,45 @@ async def _fetch(session: AsyncSession, url: str, attempt: int = 0) -> str | Non
         The response body as a string on HTTP 200, or ``None`` if the request
         ultimately fails after all retries.
     """
+    from shared.http_client import make_dc_proxy
+
+    if _sem is not None:
+        async with _sem:
+            return await _fetch(session, url, attempt, _sem=None)
+
     try:
-        r = await session.get(url, timeout=30)
+        proxy = make_dc_proxy()   # fresh exit node every attempt
+        r = await session.get(
+            url,
+            proxies=proxy,
+            timeout=20,
+            headers={
+                "accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-language": "en-US,en;q=0.9",
+                "referer":         "https://www.google.com/",
+            },
+        )
+        log.debug("  GET %s → %d", url, r.status_code)
         if r.status_code == 200:
             return r.text
         if r.status_code in (429, 403, 503) and attempt < MAX_RETRIES:
-            delay = attempt * 4 + random.uniform(0.5, 2.0)
-            await asyncio.sleep(delay)
+            wait = (attempt + 1) * 5 + random.uniform(1, 3)
+            log.warning("  HTTP %d — retry %d/%d in %.1fs — %s", r.status_code, attempt + 1, MAX_RETRIES, wait, url)
+            await asyncio.sleep(wait)
             return await _fetch(session, url, attempt + 1)
+        log.error("  HTTP %d — giving up — %s", r.status_code, url)
         return None
-    except Exception:
-        if attempt < MAX_RETRIES:
-            delay = attempt * 4 + random.uniform(0.5, 2.0)
-            await asyncio.sleep(delay)
+    except Exception as e:
+        err = str(e).lower()
+        is_timeout = any(k in err for k in ("timed out", "timeout", "operation timed", "28,"))
+        is_conn    = any(k in err for k in ("connection", "proxy", "ssl", "eof", "reset"))
+        if (is_timeout or is_conn) and attempt < MAX_RETRIES:
+            wait = random.uniform(0.3, 1.0)
+            kind = "TIMEOUT" if is_timeout else "CONN_ERR"
+            log.warning("  %s [%d/%d] — retry in %.1fs — %s", kind, attempt + 1, MAX_RETRIES, wait, url)
+            await asyncio.sleep(wait)
             return await _fetch(session, url, attempt + 1)
+        log.error("  FATAL %s — %s", url, e)
         return None
 
 
@@ -124,7 +152,7 @@ def _extract_subcats(html: str, base_cat_url: str) -> list[str]:
     return list(dict.fromkeys(subcats))
 
 
-async def _get_last_page(session: AsyncSession, subcat_url: str, sort: str = "name-asc") -> int:
+async def _get_last_page(session: AsyncSession, subcat_url: str, sort: str = "name-asc", sem: asyncio.Semaphore | None = None) -> int:
     """Determine the highest pagination page number for a subcategory.
 
     Fetches the first page of the listing and inspects ``[data-page]``
@@ -139,7 +167,7 @@ async def _get_last_page(session: AsyncSession, subcat_url: str, sort: str = "na
     Returns:
         The last (maximum) available page number, capped at ``MAX_PAGE_CAP``.
     """
-    html = await _fetch(session, _sort_url(subcat_url, sort, 1))
+    html = await _fetch(session, _sort_url(subcat_url, sort, 1), _sem=sem)
     if not html:
         return 1
     tree = HTMLParser(html)
@@ -209,7 +237,7 @@ def _parse_money(text: str) -> float | None:
         return None
 
 
-def _parse_plp(html: str, input_url: str) -> list[dict]:
+def _parse_plp(html: str, input_url: str, nav_page_url: str = "") -> list[dict]:
     """Parse product listing page HTML into a list of product dicts.
 
     Iterates over every ``div.product-box`` card, extracting product identity
@@ -221,11 +249,10 @@ def _parse_plp(html: str, input_url: str) -> list[dict]:
         html: Raw HTML string of the product listing page.
         input_url: The subcategory URL that produced this page, stored on
             each product record for traceability.
+        nav_page_url: The paginated URL where this product was found.
 
     Returns:
-        A list of product dicts whose keys match ``CSV_FIELDS``. The
-        ``variants`` value is a JSON string; ``coverage_pct`` is ``None``
-        and should be filled in by the caller.
+        A list of product dicts whose keys match ``CSV_FIELDS``.
     """
     tree = HTMLParser(html)
     products = []
@@ -237,22 +264,25 @@ def _parse_plp(html: str, input_url: str) -> list[dict]:
         product_url = (href if href.startswith("http") else BASE_URL + href) if href else ""
 
         # IDs
-        code_inp = card.css_first("input[name='product-name']")
-        product_code = code_inp.attributes.get("value", "") if code_inp else ""
         id_inp = card.css_first("input[name='product-id']")
         product_id = id_inp.attributes.get("value", "") if id_inp else ""
 
-        # Description
-        desc_el = card.css_first("div.product-description")
-        description = desc_el.text(strip=True) if desc_el else ""
+        # Brand + model from product name ("Fortinet FortiGate-40F" → "Fortinet", "FortiGate-40F")
+        name_parts = name.split(" ", 1)
+        brand = name_parts[0] if name_parts else ""
+        model = name_parts[1] if len(name_parts) > 1 else ""
 
-        # Model from meta or name
-        model_el = card.css_first("span.product-model, div.product-number")
-        model = model_el.text(strip=True) if model_el else ""
-
-        # Brand
-        brand_el = card.css_first("span.product-manufacturer-name, a.product-manufacturer")
-        brand = brand_el.text(strip=True) if brand_el else ""
+        # Breadcrumb from URL path (category > subcategory > subcategory2)
+        category = subcategory = subcategory2 = ""
+        if product_url:
+            parts = product_url.rstrip("/").split("/")
+            try:
+                rel = parts[parts.index("en") + 1:]  # everything after /en/
+                category     = rel[0] if len(rel) > 0 else ""
+                subcategory  = rel[1] if len(rel) > 1 else ""
+                subcategory2 = rel[2] if len(rel) > 2 else ""
+            except (ValueError, IndexError):
+                pass
 
         # EAN
         ean_el = card.css_first("span.product-ean")
@@ -261,32 +291,47 @@ def _parse_plp(html: str, input_url: str) -> list[dict]:
         # Variants
         variants = []
         for opt in card.css("div.product-detail-configurator-option"):
-            cond_el = opt.css_first("div.maxia-variants-list-text")
-            condition = cond_el.text(strip=True).split()[0] if cond_el else ""
-
-            price_el = opt.css_first("div.product-variant-price")
-            price = _parse_money(price_el.text(strip=True)) if price_el else None
-
-            stock_el = opt.css_first("div.product-variant-stock")
-            try:
-                stock = int(re.search(r"\d+", stock_el.text(strip=True)).group()) if stock_el else None
-            except (AttributeError, ValueError):
-                stock = None
-
             variant_id = opt.attributes.get("data-product-id", "")
 
-            # Availability via class
-            avail_span = opt.css_first("span.product-variant-availability")
+            # Condition: text node in div BEFORE the span child.
+            # selectolax.text() concatenates nodes without spaces, so we read
+            # the raw HTML and split on <span to get only the direct text.
+            text_div   = opt.css_first("div.maxia-variants-list-text")
+            avail_span = text_div.css_first("span") if text_div else None
+            span_text  = avail_span.text(strip=True) if avail_span else ""
+            condition  = ""
+            if text_div:
+                div_html    = text_div.html or ""
+                before_span = re.split(r"<span", div_html, maxsplit=1)[0]
+                before_span = re.sub(r"^<[^>]+>", "", before_span)  # strip opening div tag
+                before_span = re.sub(r"<[^>]+>", "", before_span)   # strip <br> and any other tags
+                condition   = " ".join(before_span.split())          # collapse whitespace/newlines
+
+            # Availability from span class name
             if avail_span:
-                cls = " ".join(avail_span.attributes.get("class", "").split())
+                cls = avail_span.attributes.get("class", "")
                 if "inStock" in cls:
                     availability = "In Stock"
                 elif "withDelivery" in cls:
                     availability = "With Delivery"
                 else:
-                    availability = avail_span.text(strip=True)
+                    availability = span_text
             else:
                 availability = ""
+
+            # Price: p.product-price inside the variant option
+            price_el   = opt.css_first("p.product-price")
+            price_text = price_el.text(strip=True) if price_el else ""
+            price      = _parse_money(price_text)
+            if price is None and "request" in price_text.lower():
+                price = "on_request"
+
+            # Stock: "23 available" → 23
+            stock_el = opt.css_first("div.product-variant-stock")
+            stock = None
+            if stock_el:
+                m = re.search(r"\d+", stock_el.text(strip=True))
+                stock = int(m.group()) if m else None
 
             variants.append({
                 "variant_id": variant_id,
@@ -296,56 +341,62 @@ def _parse_plp(html: str, input_url: str) -> list[dict]:
                 "availability": availability,
             })
 
-        # Fallback single variant from card price
+        # Fallback single variant when no configurator options present
         if not variants:
-            price_el = card.css_first("div.product-price span.price-unit-content")
-            price = _parse_money(price_el.text(strip=True)) if price_el else None
-            stock_el = card.css_first("div.delivery-badge")
-            availability = stock_el.text(strip=True) if stock_el else ""
+            price_el   = card.css_first("p.product-price")
+            price_text = price_el.text(strip=True) if price_el else ""
+            price      = _parse_money(price_text)
+            if price is None and "request" in price_text.lower():
+                price = "on_request"
             variants.append({
                 "variant_id": product_id,
                 "condition": "New",
                 "price": price,
                 "stock": None,
-                "availability": availability,
+                "availability": "",
             })
 
-        if not product_code and not name:
+        if not product_id and not name:
             continue
 
+        crumb_parts = [p for p in [category, subcategory, subcategory2] if p]
+        breadcrumb = " > ".join(p.replace("-", " ").title() for p in crumb_parts)
+
+        prices = {
+            f"{v['condition']} ({v['availability']})": v["price"]
+            for v in variants
+            if v.get("price") is not None
+        }
+
         products.append({
-            "product_name": name,
-            "product_code": product_code,
-            "product_id": product_id,
             "product_url": product_url,
-            "breadcrumb": "",
-            "category": "",
-            "subcategory": "",
-            "model": model,
-            "description": description[:500],
-            "ean_upc": ean_upc,
+            "product_name": name,
             "brand": brand,
-            "variants": json.dumps(variants),
+            "model": model,
+            "mpn": "",
+            "sku": product_id,
+            "breadcrumb": breadcrumb,
+            "prices": json.dumps(prices, ensure_ascii=False),
             "input_url": input_url,
-            "coverage_pct": None,
+            "nav_page_url": nav_page_url,
             "status": "ok",
             "error_message": "",
         })
     return products
 
 
-# ── Multi-sort scrape ─────────────────────────────────────────────────────────
+# ── Paginate one subcategory ──────────────────────────────────────────────────
 
 async def _scrape_subcat(
     session: AsyncSession,
     subcat_url: str,
     seen: set[str],
+    sem: asyncio.Semaphore | None = None,
 ) -> list[dict]:
-    """Scrape all 5 sort orders for one subcategory, deduplicating via a shared seen set.
+    """Paginate a single subcategory URL and return unseen products.
 
-    Iterates over ``SORTS``, fetches every page for each sort order, parses
-    product cards, and adds only previously-unseen products (keyed on
-    ``product_code`` or ``product_url``) to the result list.
+    Fetches page 1 to determine last page, then fetches all pages in parallel,
+    deduplicating on sku or product_url via the shared seen set.
 
     Args:
         session: An active ``curl_cffi`` async HTTP session.
@@ -358,82 +409,83 @@ async def _scrape_subcat(
         subcategory scrape.
     """
     new_products: list[dict] = []
+    last_page = await _get_last_page(session, subcat_url, sem=sem)
+    log.info("  subcat %s — %d pages", subcat_url, last_page)
 
-    for sort in SORTS:
-        last_page = await _get_last_page(session, subcat_url, sort)
-        for page in range(1, last_page + 1):
-            html = await _fetch(session, _sort_url(subcat_url, sort, page))
-            if not html:
-                continue
-            for p in _parse_plp(html, subcat_url):
-                key = p["product_code"] or p["product_url"]
-                if key and key not in seen:
-                    seen.add(key)
-                    new_products.append(p)
+    page_urls = [f"{subcat_url.rstrip('/')}?p={page}" for page in range(1, last_page + 1)]
+    html_results = await asyncio.gather(
+        *[_fetch(session, url, _sem=sem) for url in page_urls],
+        return_exceptions=True,
+    )
+    for url, html in zip(page_urls, html_results):
+        if not isinstance(html, str):
+            log.warning("  page FAILED — skipping: %s", url)
+            continue
+        for p in _parse_plp(html, subcat_url, nav_page_url=url):
+            key = p["sku"] or p["product_url"]  # sku is now UUID from product-id
+            if key and key not in seen:
+                seen.add(key)
+                new_products.append(p)
 
+    log.info("  subcat done — %d new products (total seen: %d)", len(new_products), len(seen))
     return new_products
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 async def run(input_url: str, run_id: str) -> list[dict]:
-    """Orchestrate a full IT-Market scrape and return all discovered products.
+    """Orchestrate an IT-Market scrape and return all discovered products.
 
-    Performs dynamic category discovery from the site's home page, then
-    iterates over every subcategory applying the 5-sort deduplication
-    strategy via ``_scrape_subcat``. If ``input_url`` is a specific
-    subcategory URL it overrides discovery and only that URL is scraped.
-    A ``coverage_pct`` of 100.0 is assigned to every product at the end.
+    If ``input_url`` is a specific subcategory URL, scrapes only that URL
+    (no discovery). If ``input_url`` is the site base URL, performs full
+    category discovery first.
 
     Args:
-        input_url: A specific subcategory URL to scope the scrape to, or the
-            site's base URL to trigger full discovery.
-        run_id: Unique identifier for this scrape run, used for logging and
-            upstream job tracking.
+        input_url: Specific subcategory URL, or base URL for full discovery.
+        run_id: Unique identifier for this scrape run.
 
     Returns:
         A list of product dicts with all ``CSV_FIELDS`` populated.
 
     Raises:
-        RuntimeError: If the IT Market home page cannot be fetched.
+        RuntimeError: If a required page cannot be fetched.
     """
     from shared.http_client import make_dc_proxy, make_curl_session
 
     proxy = make_dc_proxy(sticky=True)
     seen: set[str] = set()
     all_products: list[dict] = []
+    sem = asyncio.Semaphore(CONCURRENCY)
 
     async with make_curl_session(proxy) as session:
-        # Dynamic category discovery
-        html_home = await _fetch(session, BASE_URL + "/en/")
-        if not html_home:
-            raise RuntimeError("Failed to fetch IT Market home page")
-
-        top_cats = _extract_top_cats(html_home)
-
-        # Collect all subcategories
-        subcats: list[str] = []
-        for cat_url in top_cats:
-            cat_html = await _fetch(session, cat_url)
-            if cat_html:
-                subs = _extract_subcats(cat_html, cat_url)
-                subcats.extend(subs)
-
-        # Deduplicate subcategory URLs
-        subcats = list(dict.fromkeys(subcats))
-
-        # If caller passed a specific subcat URL, use that only
-        if input_url and input_url != BASE_URL:
+        # Direct URL — skip discovery entirely
+        if input_url and input_url.rstrip("/") != BASE_URL.rstrip("/"):
+            log.info("[%s] direct URL — skipping discovery: %s", run_id, input_url)
             subcats = [input_url]
+        else:
+            # Full discovery from home page
+            log.info("[%s] base URL — running full discovery", run_id)
+            html_home = await _fetch(session, BASE_URL + "/en/", _sem=sem)
+            if not html_home:
+                raise RuntimeError("Failed to fetch IT Market home page")
+            top_cats = _extract_top_cats(html_home)
+            cat_htmls = await asyncio.gather(
+                *[_fetch(session, cat_url, _sem=sem) for cat_url in top_cats],
+                return_exceptions=True,
+            )
+            subcats: list[str] = []
+            for cat_url, cat_html in zip(top_cats, cat_htmls):
+                if isinstance(cat_html, str):
+                    subcats.extend(_extract_subcats(cat_html, cat_url))
+            subcats = list(dict.fromkeys(subcats))
+            log.info("[%s] discovery found %d subcategories", run_id, len(subcats))
 
-        # Probe each subcat and scrape
-        for subcat_url in subcats:
-            products = await _scrape_subcat(session, subcat_url, seen)
-            all_products.extend(products)
-
-    # Add coverage_pct per product (all products found = 100% per sort; approximation)
-    total = len(all_products)
-    for p in all_products:
-        p["coverage_pct"] = 100.0 if total > 0 else 0.0
+        subcat_results = await asyncio.gather(
+            *[_scrape_subcat(session, url, seen, sem=sem) for url in subcats],
+            return_exceptions=True,
+        )
+        for result in subcat_results:
+            if isinstance(result, list):
+                all_products.extend(result)
 
     return all_products

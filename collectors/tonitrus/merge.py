@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
@@ -9,32 +10,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import traceback
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from shared import firestore_client, gcs_client, notifications
+from shared import config, firestore_client, gcs_client, notifications
 
 app = FastAPI()
-
-CSV_FIELDS = [
-    "product_name",
-    "product_code",
-    "product_url",
-    "category",
-    "breadcrumb",
-    "description",
-    "ean_upc",
-    "brand",
-    "price",
-    "condition",
-    "stock",
-    "availability",
-    "variants",
-    "input_url",
-    "is_cto",
-    "status",
-    "error_message",
-]
 
 
 @app.post("/")
@@ -59,8 +43,11 @@ async def handle(request: Request) -> JSONResponse:
     payload = await request.json()
     run_id: str = payload["run_id"]
 
+    logger.info("Merge started run_id=%s", run_id)
+
     try:
         products = await firestore_client.tonitrus_read_all_products(run_id)
+        logger.info("Read %d products from Firestore run_id=%s", len(products), run_id)
 
         # Final dedup pass on product_code
         seen: set[str] = set()
@@ -71,7 +58,9 @@ async def handle(request: Request) -> JSONResponse:
                 seen.add(key)
                 deduped.append(p)
 
-        gcs_uri = gcs_client.upload_csv(run_id, "tonitrus", deduped, CSV_FIELDS)
+        logger.info("After dedup: %d products run_id=%s", len(deduped), run_id)
+        gcs_uri = gcs_client.upload_csv(run_id, "tonitrus", deduped, config.TONITRUS_CSV_FIELDS)
+        logger.info("CSV uploaded uri=%s run_id=%s", gcs_uri, run_id)
         await firestore_client.update_job(run_id, status="complete", output_url=gcs_uri)
 
         error_count = sum(1 for p in deduped if p.get("status") == "failed")
@@ -81,12 +70,24 @@ async def handle(request: Request) -> JSONResponse:
 
     except Exception as exc:
         err_msg = traceback.format_exc()
+        logger.error("Merge failed run_id=%s error=%s", run_id, err_msg)
         await firestore_client.update_job(run_id, status="failed", error=str(exc))
         notifications.notify_error("tonitrus", run_id, err_msg)
         return JSONResponse(
             {"ok": False, "error": str(exc)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+@app.post("/trigger")
+async def trigger_merge(request: Request) -> JSONResponse:
+    """Manually trigger a merge for a stuck run.
+
+    Accepts {run_id} in the body and runs the same merge logic as the
+    Cloud Tasks route. Safe to call multiple times — GCS upload and
+    Firestore update are both idempotent.
+    """
+    return await handle(request)
 
 
 @app.get("/health")

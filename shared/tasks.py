@@ -2,6 +2,7 @@
 
 import json
 
+from google.api_core.exceptions import AlreadyExists
 from google.cloud import tasks_v2
 
 from . import config
@@ -25,23 +26,26 @@ def _get_client() -> tasks_v2.CloudTasksAsyncClient:
     return _client
 
 
-async def enqueue(url: str, payload: dict, task_id: str | None = None) -> None:
+async def enqueue(
+    url: str,
+    payload: dict,
+    task_id: str | None = None,
+    oidc_audience: str | None = None,
+    dispatch_deadline_seconds: int = 1800,
+) -> None:
     """Enqueue an HTTP POST task on the configured Cloud Tasks queue.
 
-    The task body is JSON-encoded and sent to ``url`` as an ``application/json``
-    POST request. If :data:`config.CLOUD_TASKS_SA_EMAIL` is set, an OIDC token
-    is attached to authenticate the request against the target Cloud Run service.
-    Providing a ``task_id`` makes the task name deterministic, which prevents
-    duplicate enqueueing for the same job.
-
     Args:
-        url: The fully qualified HTTPS URL of the Cloud Run worker endpoint
-            that should receive the task.
+        url: The fully qualified HTTPS URL of the Cloud Run worker endpoint.
         payload: JSON-serialisable dict that will be sent as the request body.
-        task_id: Optional deterministic task name suffix. When provided, Cloud
-            Tasks will reject duplicate tasks with the same ID within the
-            deduplication window.
+        task_id: Optional deterministic task name suffix for deduplication.
+        oidc_audience: OIDC token audience override. Defaults to url.
+        dispatch_deadline_seconds: How long Cloud Tasks will wait for the
+            worker to respond before retrying. Default 1800s (30 min) to
+            accommodate long-running PLP scrapes.
     """
+    from google.protobuf import duration_pb2
+
     client = _get_client()
     parent = client.queue_path(
         config.CLOUD_TASKS_PROJECT,
@@ -54,14 +58,18 @@ async def enqueue(url: str, payload: dict, task_id: str | None = None) -> None:
             "url": url,
             "headers": {"Content-Type": "application/json"},
             "body": json.dumps(payload).encode(),
-        }
+        },
+        "dispatch_deadline": duration_pb2.Duration(seconds=dispatch_deadline_seconds),
     }
     if config.CLOUD_TASKS_SA_EMAIL:
         task["http_request"]["oidc_token"] = {
             "service_account_email": config.CLOUD_TASKS_SA_EMAIL,
-            "audience": url,
+            "audience": oidc_audience or url,
         }
     if task_id:
         task["name"] = f"{parent}/tasks/{task_id}"
 
-    await client.create_task(parent=parent, task=task)
+    try:
+        await client.create_task(parent=parent, task=task)
+    except AlreadyExists:
+        pass  # task already enqueued from a prior attempt — idempotent

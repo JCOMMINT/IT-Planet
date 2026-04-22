@@ -10,41 +10,25 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
+
+import os
 
 from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
 
+logger = logging.getLogger(__name__)
+
 BASE_URL = "https://www.jacob.de"
 MAX_PAGE = 500
 MAX_RETRIES = 3
-SEMAPHORE_LIMIT = 5
+SEMAPHORE_LIMIT = int(os.getenv("SCRAPER_CONCURRENCY", "5"))
 
 CSV_FIELDS = [
-    "artnr",
-    "name",
-    "url",
-    "sku",
-    "mpn",
-    "ean",
-    "description",
-    "brand",
-    "category_path",
-    "breadcrumbs",
-    "price",
-    "currency",
-    "price_min",
-    "price_max",
-    "condition",
-    "availability",
-    "stock",
-    "delivery_time",
-    "raw_condition",
-    "jsonld_offer_count",
-    "jsonld_price_min",
-    "jsonld_price_max",
-    "status",
-    "error_message",
+    "product_url", "product_name", "brand", "model", "mpn", "sku",
+    "breadcrumb", "prices", "input_url", "nav_page_url",
+    "status", "error_message",
 ]
 
 
@@ -185,8 +169,10 @@ async def _split_ranges(
     if last_p < MAX_PAGE:
         return [(pmin, pmax)]
     mid = (pmin + pmax) / 2
-    left = await _split_ranges(session, cat_url, sem, pmin, mid)
-    right = await _split_ranges(session, cat_url, sem, mid, pmax)
+    left, right = await asyncio.gather(
+        _split_ranges(session, cat_url, sem, pmin, mid),
+        _split_ranges(session, cat_url, sem, mid, pmax),
+    )
     return left + right
 
 
@@ -268,11 +254,12 @@ async def _scrape_plp_range(
     sem: asyncio.Semaphore,
     pmin: float | None,
     pmax: float | None,
-) -> set[str]:
+) -> dict[str, str]:
     """Fetch every page of a price-filtered category range and collect product URLs.
 
     All pages within the range are fetched concurrently (bounded by ``sem``) and
-    their product links are merged into a single deduplicated set.
+    their product links are merged. Returns a mapping of product URL → nav_page_url
+    (the PLP page where the product was first seen).
 
     Args:
         session: An active curl_cffi AsyncSession.
@@ -282,16 +269,17 @@ async def _scrape_plp_range(
         pmax: Upper price bound passed to the PLP URL builder, or None.
 
     Returns:
-        Set of absolute product URLs found across all pages in this range.
+        Dict mapping absolute product URL → nav_page_url (first PLP page seen on).
     """
     last_p = await _last_page(session, cat_url, sem, pmin, pmax)
-    tasks = [_fetch(session, _plp_url(cat_url, p, pmin, pmax), sem) for p in range(1, last_p + 1)]
-    results = await asyncio.gather(*tasks)
-    urls: set[str] = set()
-    for html in results:
+    page_urls = [_plp_url(cat_url, p, pmin, pmax) for p in range(1, last_p + 1)]
+    results = await asyncio.gather(*[_fetch(session, pu, sem) for pu in page_urls])
+    url_to_nav: dict[str, str] = {}
+    for page_url, html in zip(page_urls, results):
         if html:
-            urls.update(_parse_product_urls(html))
-    return urls
+            for prod_url in _parse_product_urls(html):
+                url_to_nav.setdefault(prod_url, page_url)  # keep first page seen
+    return url_to_nav
 
 
 # ── PDP parsing ───────────────────────────────────────────────────────────────
@@ -326,100 +314,117 @@ def _normalize_condition(raw: str) -> str:
 def _extract_jsonld(data: dict) -> dict:
     """Extract structured product fields from a JSON-LD Product schema dict.
 
-    Handles both single-offer and multi-offer ``offers`` values. Prices are
-    gathered from ``price``, ``lowPrice``, and ``highPrice`` keys. Condition
-    strings are normalised via ``_normalize_condition``.
+    Handles both single-offer and multi-offer ``offers`` values. Builds a
+    ``prices`` dict keyed by normalized condition label.
 
     Args:
         data: Parsed JSON-LD dictionary whose ``@type`` is ``"Product"``.
 
     Returns:
-        Dictionary containing keys: ``name``, ``sku``, ``mpn``, ``ean``,
-        ``description``, ``brand``, ``price``, ``currency``, ``price_min``,
-        ``price_max``, ``condition``, ``raw_condition``, ``availability``,
-        ``stock``, ``delivery_time``, ``jsonld_offer_count``,
-        ``jsonld_price_min``, ``jsonld_price_max``.
+        Dictionary containing keys: ``product_name``, ``sku``, ``mpn``,
+        ``brand``, ``prices``.
     """
     raw_offer = data.get("offers", {})
     offers = raw_offer if isinstance(raw_offer, list) else [raw_offer]
 
-    prices = []
-    conditions = []
-    raw_conditions = []
-    currency = "EUR"
-    availability = ""
-
-    for o in offers:
-        for price_key in ("price", "lowPrice", "highPrice"):
-            try:
-                prices.append(float(o.get(price_key) or 0))
-            except (ValueError, TypeError):
-                pass
-        raw_cond = o.get("itemCondition", "")
-        raw_conditions.append(raw_cond)
-        conditions.append(_normalize_condition(raw_cond))
-        currency = o.get("priceCurrency", currency)
-        availability = o.get("availability", availability)
-
-    price_min = min((p for p in prices if p > 0), default=None)
-    price_max = max((p for p in prices if p > 0), default=None)
-
     brand = data.get("brand")
     brand_name = brand.get("name", "") if isinstance(brand, dict) else (brand or "")
 
+    prices: dict[str, float] = {}
+    for o in offers:
+        cond = _normalize_condition(o.get("itemCondition", ""))
+        for price_key in ("price", "lowPrice"):
+            try:
+                v = float(o.get(price_key) or 0)
+                if v > 0:
+                    prices[cond] = v
+                    break
+            except (ValueError, TypeError):
+                pass
+
     return {
-        "name": data.get("name", ""),
+        "product_name": data.get("name", ""),
         "sku": data.get("sku", ""),
         "mpn": data.get("mpn", ""),
-        "ean": data.get("gtin13") or data.get("gtin14") or data.get("gtin", ""),
-        "description": (data.get("description") or "")[:500],
         "brand": brand_name,
-        "price": price_min,
-        "currency": currency,
-        "price_min": price_min,
-        "price_max": price_max,
-        "condition": conditions[0] if conditions else "",
-        "raw_condition": raw_conditions[0] if raw_conditions else "",
-        "availability": availability,
-        "stock": "",
-        "delivery_time": "",
-        "jsonld_offer_count": len(offers),
-        "jsonld_price_min": price_min,
-        "jsonld_price_max": price_max,
+        "prices": json.dumps(prices, ensure_ascii=False),
     }
 
 
 def _parse_pdp(html: str) -> dict | None:
     """Parse a product detail page HTML and return structured product data.
 
-    Scans all ``<script type="application/ld+json">`` blocks looking for a
-    node whose ``@type`` is ``"Product"``, including nodes nested inside an
-    ``@graph`` array.
+    Scans all ``<script type="application/ld+json">`` blocks for a Product
+    node and an optional BreadcrumbList node (both at root and inside @graph).
+    Breadcrumb is built by joining item names[1:-1] (skip home + product).
 
     Args:
         html: Raw HTML string of a jacob.de product detail page.
 
     Returns:
-        Dictionary of product fields from ``_extract_jsonld``, or None if no
+        Dictionary of product fields including ``breadcrumb``, or None if no
         valid Product JSON-LD block is found.
     """
     tree = HTMLParser(html)
+    product_data: dict | None = None
+    breadcrumb_items: list = []
+
     for script in tree.css("script[type='application/ld+json']"):
         try:
             raw = script.text()
             if not raw:
                 continue
             data = json.loads(raw)
-            if isinstance(data, dict):
-                if data.get("@type") == "Product":
-                    return _extract_jsonld(data)
-                if "@graph" in data:
-                    for item in data["@graph"]:
-                        if isinstance(item, dict) and item.get("@type") == "Product":
-                            return _extract_jsonld(item)
+            if not isinstance(data, dict):
+                continue
+            nodes = data.get("@graph", [data])
+            for item in nodes:
+                if not isinstance(item, dict):
+                    continue
+                t = item.get("@type")
+                if t == "Product" and product_data is None:
+                    product_data = _extract_jsonld(item)
+                elif t == "BreadcrumbList" and not breadcrumb_items:
+                    breadcrumb_items = item.get("itemListElement", [])
         except (json.JSONDecodeError, AttributeError):
             continue
-    return None
+
+    if product_data is None:
+        return None
+
+    if breadcrumb_items:
+        sorted_items = sorted(breadcrumb_items, key=lambda x: x.get("position", 0))
+        names = [
+            (i.get("name") or (i.get("item") or {}).get("name", ""))
+            for i in sorted_items
+        ]
+        names = [n for n in names if n]
+        product_data["breadcrumb"] = " > ".join(names[1:-1])
+    else:
+        product_data["breadcrumb"] = ""
+
+    return product_data
+
+
+def _breadcrumb_from_url(url: str) -> str:
+    """Derive a breadcrumb string from a jacob.de category URL.
+
+    Parses the URL path, drops the ``kategorie`` prefix if present, drops
+    file extensions, title-cases each segment, and joins with `` > ``.
+    Single-segment URLs (e.g. ``/racks/``) return that segment alone.
+    """
+    from urllib.parse import urlparse
+    path = urlparse(url).path
+    parts = [p for p in path.split("/") if p]
+    # Drop known structural prefix
+    if parts and parts[0] == "kategorie":
+        parts = parts[1:]
+    # Drop last segment if it looks like a product slug (contains a dot, e.g. .html)
+    if len(parts) > 1 and "." in parts[-1]:
+        parts = parts[:-1]
+    # Title-case and replace hyphens with spaces for readability
+    parts = [p.replace("-", " ").title() for p in parts]
+    return " > ".join(parts)
 
 
 def _artnr_from_url(url: str) -> str:
@@ -439,25 +444,31 @@ def _artnr_from_url(url: str) -> str:
     return m.group(1) if m else ""
 
 
-async def _scrape_pdp(session: AsyncSession, url: str, sem: asyncio.Semaphore) -> dict:
+async def _scrape_pdp(
+    session: AsyncSession,
+    url: str,
+    sem: asyncio.Semaphore,
+    nav_page_url: str = "",
+    input_url: str = "",
+) -> dict:
     """Fetch and parse a single product detail page, returning a data row.
 
-    Always returns a dictionary with at least the ``artnr``, ``url``,
-    ``category_path``, ``breadcrumbs``, ``status``, and ``error_message``
-    keys so that failed rows can still be written to the output CSV.
+    Always returns a dictionary with at least ``product_url``, ``nav_page_url``,
+    ``input_url``, ``status``, and ``error_message`` so failed rows are still
+    written to the output CSV.
 
     Args:
         session: An active curl_cffi AsyncSession.
         url: Absolute URL of the product detail page to scrape.
         sem: Semaphore used to cap concurrent requests.
+        nav_page_url: PLP page URL where this product was discovered.
+        input_url: Category URL that seeded this scrape run.
 
     Returns:
         Dictionary of product fields on success (``status`` is ``"ok"``), or a
-        partial dictionary with ``status`` set to ``"failed"`` and an
-        ``error_message`` describing the failure reason.
+        partial dictionary with ``status`` set to ``"failed"``.
     """
-    artnr = _artnr_from_url(url)
-    base = {"artnr": artnr, "url": url, "category_path": "", "breadcrumbs": ""}
+    base = {"product_url": url, "nav_page_url": nav_page_url, "input_url": input_url}
 
     html = await _fetch(session, url, sem)
     if not html:
@@ -470,6 +481,38 @@ async def _scrape_pdp(session: AsyncSession, url: str, sem: asyncio.Semaphore) -
     return {**base, **parsed, "status": "ok", "error_message": ""}
 
 
+# ── Per-range scrape with its own sticky session ──────────────────────────────
+
+
+async def _scrape_range(
+    input_url: str,
+    sem: asyncio.Semaphore,
+    pmin: float | None,
+    pmax: float | None,
+    slot: int,
+) -> dict[str, str]:
+    """Scrape one price-filtered range using a dedicated sticky proxy session.
+
+    Each parallel range gets its own exit IP (slot-based sticky proxy) so
+    concurrent ranges don't share the same datacenter node.
+
+    Args:
+        input_url: Base category URL on jacob.de.
+        sem: Shared semaphore capping concurrent in-flight requests.
+        pmin: Lower price bound, or None for no filter.
+        pmax: Upper price bound, or None for no filter.
+        slot: Deterministic slot index used to select a distinct exit node.
+
+    Returns:
+        Dict mapping product URL → nav_page_url for all products in this range.
+    """
+    from shared.http_client import make_curl_session, make_dc_proxy
+
+    proxy = make_dc_proxy(sticky=True, slot=slot)
+    async with make_curl_session(proxy) as sess:
+        return await _scrape_plp_range(sess, input_url, sem, pmin, pmax)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
@@ -478,7 +521,7 @@ async def run(input_url: str, run_id: str) -> list[dict]:
 
     Orchestrates the full pipeline: price-range discovery, concurrent PLP
     scraping across all ranges, concurrent PDP scraping, and deduplication
-    by article number.
+    by product URL.
 
     Args:
         input_url: Full URL of the jacob.de category page to scrape.
@@ -486,32 +529,70 @@ async def run(input_url: str, run_id: str) -> list[dict]:
             tracing upstream).
 
     Returns:
-        List of product row dictionaries, deduplicated by ``artnr``. Each
-        row contains the fields defined in ``CSV_FIELDS``.
+        List of product row dictionaries, deduplicated by ``product_url``.
+        Each row contains the fields defined in ``CSV_FIELDS``.
     """
     from shared.http_client import make_curl_session, make_dc_proxy
 
+    logger.info("run started run_id=%s input_url=%s", run_id, input_url)
     proxy = make_dc_proxy(sticky=True)
     sem = asyncio.Semaphore(SEMAPHORE_LIMIT)
 
     async with make_curl_session(proxy) as session:
         ranges = await _get_price_ranges(session, input_url, sem)
+        logger.info("Price ranges found: %d", len(ranges))
 
-        all_urls: set[str] = set()
-        for pmin, pmax in ranges:
-            urls = await _scrape_plp_range(session, input_url, sem, pmin, pmax)
-            all_urls.update(urls)
+        url_to_nav: dict[str, str] = {}
+        range_batches = await asyncio.gather(
+            *[_scrape_range(input_url, sem, pmin, pmax, slot=i)
+              for i, (pmin, pmax) in enumerate(ranges)],
+            return_exceptions=True,
+        )
+        for i, batch in enumerate(range_batches):
+            if isinstance(batch, Exception):
+                logger.warning("PLP range %d failed: %s", i, batch)
+                continue
+            for prod_url, nav in batch.items():
+                url_to_nav.setdefault(prod_url, nav)
+        logger.info("PLP done — %d unique product URLs", len(url_to_nav))
 
-        pdp_tasks = [_scrape_pdp(session, url, sem) for url in all_urls]
-        rows = await asyncio.gather(*pdp_tasks)
+        logger.info("Fetching %d PDPs", len(url_to_nav))
+        pdp_tasks = [
+            _scrape_pdp(session, url, sem, nav_page_url=nav, input_url=input_url)
+            for url, nav in url_to_nav.items()
+        ]
+        results = await asyncio.gather(*pdp_tasks, return_exceptions=True)
 
-    # Dedup on artnr, keeping first occurrence
+    # Breadcrumb derived from input_url — used as fallback when JSON-LD is absent
+    url_breadcrumb = _breadcrumb_from_url(input_url)
+
+    # Resolve exceptions → failed rows; compute model; dedup by product_url
     seen: set[str] = set()
     deduped: list[dict] = []
-    for row in rows:
-        key = row.get("artnr") or row.get("url", "")
-        if key not in seen:
+    for url, result in zip(url_to_nav, results):
+        if isinstance(result, Exception):
+            logger.warning("PDP exception url=%s error=%s", url, result)
+            result = {
+                "product_url": url,
+                "nav_page_url": url_to_nav[url],
+                "input_url": input_url,
+                "status": "failed",
+                "error_message": str(result),
+            }
+        key = result.get("product_url", "")
+        if key and key not in seen:
             seen.add(key)
-            deduped.append(row)
+            # Derive model: product_name minus leading brand prefix
+            name = result.get("product_name", "")
+            brand = result.get("brand", "")
+            if brand and name.startswith(brand):
+                result["model"] = name[len(brand):].strip()
+            else:
+                result["model"] = name.split(" ", 1)[1] if " " in name else ""
+            # Fill breadcrumb from input_url when JSON-LD didn't provide one
+            if not result.get("breadcrumb"):
+                result["breadcrumb"] = url_breadcrumb
+            deduped.append(result)
 
+    logger.info("run complete run_id=%s total=%d deduped=%d", run_id, len(results), len(deduped))
     return deduped

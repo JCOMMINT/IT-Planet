@@ -5,6 +5,7 @@ payload, invokes the Jacob scraper, uploads results to GCS, and updates the
 corresponding Firestore job document with status and output location.
 """
 
+import logging
 import os
 import sys
 
@@ -12,10 +13,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import traceback
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from collectors.jacob.scraper import CSV_FIELDS, run
+from scraper import CSV_FIELDS, run
 from shared import firestore_client, gcs_client, notifications
 
 app = FastAPI()
@@ -42,12 +46,15 @@ async def handle(request: Request) -> JSONResponse:
     run_id: str = payload["run_id"]
     input_url: str = payload["input_url"]
 
+    logger.info("Job received run_id=%s input_url=%s", run_id, input_url)
     await firestore_client.update_job(run_id, status="running")
     notifications.notify_start("jacob", run_id, input_url)
 
     try:
         rows = await run(input_url, run_id)
+        logger.info("Scrape complete run_id=%s rows=%d", run_id, len(rows))
         gcs_uri = gcs_client.upload_csv(run_id, "jacob", rows, CSV_FIELDS)
+        logger.info("CSV uploaded run_id=%s uri=%s", run_id, gcs_uri)
         await firestore_client.update_job(run_id, status="complete", output_url=gcs_uri)
         error_count = sum(1 for r in rows if r.get("status") == "failed")
         notifications.notify_complete("jacob", run_id, gcs_uri, len(rows), error_count)
@@ -55,6 +62,7 @@ async def handle(request: Request) -> JSONResponse:
 
     except Exception as exc:
         err_msg = traceback.format_exc()
+        logger.error("Job failed run_id=%s error=%s", run_id, err_msg)
         await firestore_client.update_job(run_id, status="failed", error=str(exc))
         notifications.notify_error("jacob", run_id, err_msg)
         return JSONResponse(

@@ -1,0 +1,56 @@
+name: Deploy Tonitrus
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "collectors/tonitrus/**"
+      - "shared/**"
+
+env:
+  REGION: europe-west1
+  IMAGE: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-planet/tonitrus
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - run: gcloud auth configure-docker europe-west1-docker.pkg.dev
+
+      - run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+      - run: docker push $IMAGE:${{ github.sha }} && docker push $IMAGE:latest
+
+      # Deploy all 3 Tonitrus services from same image
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: it-planet-tonitrus-discovery
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          env_vars: ENTRY_POINT=discovery
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: it-planet-tonitrus-worker
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          env_vars: ENTRY_POINT=worker
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: it-planet-tonitrus-merge
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          env_vars: ENTRY_POINT=merge
