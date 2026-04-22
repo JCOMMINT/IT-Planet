@@ -178,7 +178,7 @@ def _parse_pdp(html: str, product_url: str, nav_page_url: str, input_url: str) -
         "sku":           sku,
         "ean":           ean,
         "breadcrumb":    breadcrumb,
-        "prices":        prices,
+        "prices":        prices if prices else "POR",
         "input_url":     input_url,
         "nav_page_url":  nav_page_url,
         "status":        "ok",
@@ -359,7 +359,7 @@ async def run(input_url: str, run_id: str) -> list[dict]:
                 alt_prices = r.get("prices", {})
                 alt_sku    = r.get("sku", "")
                 primary    = rows[alt_to_idx[secondary[j]]]
-                if alt_prices:
+                if isinstance(alt_prices, dict) and alt_prices:
                     primary["prices"].update(alt_prices)
                 if alt_sku and alt_sku not in primary["sku"]:
                     primary["sku"] = f"{primary['sku']} / {alt_sku}"
@@ -369,7 +369,7 @@ async def run(input_url: str, run_id: str) -> list[dict]:
     # ── Finalise ──────────────────────────────────────────────────────────────
     for row in rows:
         row.pop("_alt_url", None)
-        row["prices"] = json.dumps(row["prices"])
+        row["prices"] = json.dumps(row["prices"]) if isinstance(row["prices"], dict) else row["prices"]
 
     ok_count = sum(1 for r in rows if r.get("status") == "ok")
     logger.info("[DONE] run_id=%s total=%d ok=%d failed=%d",
